@@ -216,3 +216,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------
+# Dados de clientes / sensíveis — NUNCA versionar
+# ---------------------------------------------------------------
+# PDFs de consulta fiscal (situação fiscal, parcelamentos, CND, etc.)
+pdfs/
+*.pdf
+# Memorandos gerados e o JSON de dados extraídos
+output/
+Memorando_*.docx
+*_dados.json
+# Modelos originais com papel timbrado do escritório (usar templates/)
+MODELO_MEMORANDO_n8n.docx
+modelo word.docx
+# Segredos e configurações locais
+.env
+*.env
+credentials*.json
