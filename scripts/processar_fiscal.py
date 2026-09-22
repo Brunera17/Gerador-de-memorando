@@ -87,6 +87,8 @@ def classificar_pdf(texto):
             or ("gia/efd" in t and "omisso de declaracao" in t)
             or ("icms pendência" in t and "inscrição estadual" in t)):
         return "estadual_site_contribuinte"
+    if "débitos de ipva" in t or "debitos de ipva" in t:
+        return "estadual_ipva"
     if ("secretaria da fazenda e planejamento do estado de sao paulo" in t
             or "secretaria da fazenda e planejamento do estado de são paulo" in t
             or "debitos tributarios nao inscritos" in t
@@ -953,6 +955,32 @@ def extrair_estadual(texto_pge, texto_sefaz):
     return r
 
 
+def extrair_ipva(texto):
+    """Extrai débitos de IPVA do relatório "Débitos de IPVA Vinculados ao Sujeito
+    Passivo" (Secretaria da Fazenda e Planejamento do Estado de São Paulo).
+    Baseado em um único exemplo real — layout pode variar em outros casos
+    (ex.: mais de um veículo).
+    """
+    r = {"encontrado": False, "veiculos": [], "total": 0.0}
+    if not texto:
+        return r
+    m_placa = re.search(r'\b([A-Z]{3}\d[A-Z0-9]\d{2})\s+(\d+)\s+[\d-]+\s+(\S+)', texto)
+    m_valor = re.search(r'(\d{4})\s+R\$\s*([\d.,]+)\s+\w+\s+(\d+)\s+\w+', texto)
+    if not (m_placa and m_valor):
+        return r
+    r["encontrado"] = True
+    valor = float(m_valor.group(2).replace(".", "").replace(",", "."))
+    r["veiculos"].append({
+        "placa": m_placa.group(1),
+        "renavam": m_placa.group(2),
+        "municipio": m_placa.group(3),
+        "exercicio": m_valor.group(1),
+        "valor": valor,
+    })
+    r["total"] = round(sum(v["valor"] for v in r["veiculos"]), 2)
+    return r
+
+
 def extrair_icms_parcelamento(texto):
     """Extrai a simulação de parcelamento de ICMS do Site do Contribuinte (SEFAZ-SP).
     Baseado em um único exemplo real — layout pode variar em outros casos.
@@ -1428,9 +1456,13 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     return blocos_para_xml(blocos)
 
 
-def montar_estadual(estadual, site_contrib=None, icms=None):
+def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None):
     blocos = []
     tem_icms = bool(icms and icms.get("encontrado") and icms.get("total", 0) > 0)
+    # IPVA não entra nessa checagem de propósito: no memorando validado que serviu
+    # de referência, a seção de IPVA aparece sozinha, sem a linha "Débitos
+    # encontrados" — diferente do ICMS, que já foi confirmado COM essa linha.
+    tem_ipva = bool(ipva and ipva.get("encontrado") and ipva.get("total", 0) > 0)
     if not estadual.get("tem_debitos") and not tem_icms:
         blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
         for c in estadual.get("certidaos",[]):
@@ -1440,6 +1472,14 @@ def montar_estadual(estadual, site_contrib=None, icms=None):
             blocos.append({"type":"normal_bold","text":f"{prefix} nº ","bold":f"{num} ({orgao}){val_txt}: Sem débitos."})
     else:
         blocos.append({"type":"normal","text":"Débitos encontrados. Verificar certidões."})
+
+    # Débitos de IPVA — Secretaria da Fazenda e Planejamento do Estado de São Paulo
+    if tem_ipva:
+        blocos.append({"type":"label","text":"IPVA:"})
+        for v in ipva["veiculos"]:
+            blocos.append({"type":"normal",
+                "text": f"Placa {v['placa']} — RENAVAM {v['renavam']} — Exercício {v['exercicio']}"})
+        blocos.append({"type":"normal_bold","text":"Valor total: ","bold": fmt(ipva["total"]) + "."})
 
     # Simulação de Parcelamento ICMS — Site do Contribuinte (SEFAZ-SP)
     if tem_icms:
@@ -1790,7 +1830,7 @@ def main():
 
     if tem_sub:
         print("Modo subpastas detectado.")
-        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_site_contribuinte","estadual_icms_parcelamento"}, "municipal":{"municipal"}}
+        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
         for sub, tipos_validos in mapa.items():
             caminho_sub = os.path.join(pasta_pdfs, sub)
             if not os.path.isdir(caminho_sub): continue
@@ -1828,6 +1868,7 @@ def main():
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
     icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
+    ipva        = extrair_ipva(get("estadual_ipva"))
     municipal   = extrair_municipal(get("municipal"))
     hoje        = date.today().strftime("%d.%m.%Y")
 
@@ -1861,7 +1902,7 @@ def main():
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
         "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa),
-        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc),
+        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
@@ -1872,7 +1913,7 @@ def main():
 
     json_path = output.replace(".docx","_dados.json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"municipal":municipal}, f, ensure_ascii=False, indent=2)
+        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}, f, ensure_ascii=False, indent=2)
     print(f"JSON exportado: {json_path}")
 
 if __name__ == "__main__":
