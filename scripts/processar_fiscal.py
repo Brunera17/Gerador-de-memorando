@@ -87,6 +87,10 @@ def classificar_pdf(texto):
             or "débitos tributários não inscritos" in t
             or "pfe.fazenda.sp.gov.br" in t):
         return "estadual_sefaz"
+    if ("adesão ao parcelamento icms" in t or "adesao ao parcelamento icms" in t
+            or ("simulação do parcelamento" in t and "site do contribuinte" in t)
+            or ("simulacao do parcelamento" in t and "site do contribuinte" in t)):
+        return "estadual_icms_parcelamento"
     if ("iss/taxas" in t or "taxa licenca p/ funcionamento" in t
             or "taxa licença p/ funcionamento" in t
             or "consulta de debitos" in t or "consulta de débitos" in t
@@ -845,9 +849,50 @@ def extrair_estadual(texto_pge, texto_sefaz):
     return r
 
 
+def extrair_icms_parcelamento(texto):
+    """Extrai a simulação de parcelamento de ICMS do Site do Contribuinte (SEFAZ-SP).
+    Baseado em um único exemplo real — layout pode variar em outros casos.
+    """
+    r = {"encontrado": False, "quantidade_dividas": 0, "total": 0.0,
+         "num_parcelas": 0, "valor_parcela": 0.0}
+    if not texto:
+        return r
+
+    # "DÉBITOS SELECIONADOS" — linha com 6 valores em R$ + quantidade de dívidas (inteiro)
+    # Principal | Juros Moratórios | Multas | Hon. Advocatícios | Hon. Administrativos | Total | Quantidade
+    idx = texto.upper().find("DÉBITOS SELECIONADOS")
+    if idx < 0:
+        idx = texto.upper().find("DEBITOS SELECIONADOS")
+    if idx < 0:
+        return r
+    m = re.search(
+        r'([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+(\d+)',
+        texto[idx:])
+    if not m:
+        return r
+    r["encontrado"] = True
+    r["total"] = float(m.group(6).replace(".", "").replace(",", "."))
+    r["quantidade_dividas"] = int(m.group(7))
+
+    # "RESUMO DO PARCELAMENTO" — linha com os mesmos valores + acréscimo financeiro +
+    # quantidade de parcelas do plano simulado, terminando em "Simular"
+    m_resumo = re.search(
+        r'([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+(\d+)\s+Simular',
+        texto)
+    if m_resumo:
+        r["num_parcelas"] = int(m_resumo.group(8))
+        total_plano = float(m_resumo.group(7).replace(".", "").replace(",", "."))
+        if r["num_parcelas"] > 0:
+            r["valor_parcela"] = round(total_plano / r["num_parcelas"], 2)
+        if r["total"] == 0.0:
+            r["total"] = total_plano
+
+    return r
+
+
 def extrair_municipal(texto):
     r = {"status":"NEGATIVA","tem_debitos":False,"debitos":[],"total":0.0,
-         "certidao_numero":"","certidao_tipo":""}
+         "certidao_numero":"","certidao_tipo":"","parcelamento_opcoes":[]}
     if not texto: return r
 
     # ── Formato 1: ISS Web (EX/AT/AJ) ───────────────────────────────
@@ -890,6 +935,57 @@ def extrair_municipal(texto):
             "valor":   val,
             "a_pagar": a_pag
         })
+
+    # ── Formato 3: Simulação de Débitos (Fiorilli — ex.: Prefeitura de Itaí) ─
+    # Vários blocos "Exercício: AAAA - Código da Dívida: NNNNNNN", cada um com
+    # linhas "Mod Receita Vencimento Parc Valor Desconto Correção Multa Juros
+    # Honorários À pagar Situação" (o cabeçalho junta "Juros"+"Honorários" sem
+    # espaço). Baseado em um único exemplo real — layout pode variar.
+    if "simulação de débitos" in texto.lower() or "simulacao de debitos" in texto.lower():
+        for bloco_ex in re.finditer(
+                r'Exerc[íi]cio:\s*(\d{4})\s*-\s*C[óo]digo da D[íi]vida:\s*(\d+).*?'
+                r'(?=Exerc[íi]cio:\s*\d{4}\s*-\s*C[óo]digo|Sub\.\s*Total|NP\s+Primeira|$)',
+                texto, re.IGNORECASE | re.DOTALL):
+            ano, codigo, trecho = bloco_ex.group(1), bloco_ex.group(2), bloco_ex.group(0)
+            padrao_sim = re.compile(
+                r'(\d+)\s+([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÀÇ][A-ZÁÉÍÓÚÂÊÎÔÛÃÕÀÇ\s/\.\-]+?)\s+'
+                r'(\d{2}/\d{2}/\d{4})\s+(\d+)\s+'
+                r'([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+'
+                r'([A-ZÀ-Ü][A-ZÀ-Ü\s]*?)(?=\n|\d|$)')
+            for m in padrao_sim.finditer(trecho):
+                r["debitos"].append({
+                    "status":  m.group(12).strip(),
+                    "numero":  codigo,
+                    "ano":     ano,
+                    "parcela": m.group(4),
+                    "receita": m.group(2).strip(),
+                    "valor":   float(m.group(5).replace(".","").replace(",",".")),
+                    "a_pagar": float(m.group(11).replace(".","").replace(",",".")),
+                })
+
+        # Total geral: última linha "Total: ..." (soma de todos os Exercícios)
+        m_tot_sim = re.search(r'(?<!Sub\.\s)Total:\s+[\d.,]+(?:\s+[\d.,]+){5}\s+([\d.,]+)',
+                               texto, re.IGNORECASE)
+        if m_tot_sim and r["total"] == 0.0:
+            r["total"] = float(m_tot_sim.group(1).replace(".","").replace(",","."))
+
+        # Opções de parcelamento: "NP Primeira Demais Desconto" (repetido em colunas),
+        # seguido de linhas com grupos de 4 números (NP, Primeira, Demais, Desconto)
+        idx_np = texto.find("NP Primeira Demais Desconto")
+        if idx_np >= 0:
+            idx_fim = texto.find("Fiorilli", idx_np)
+            trecho_np = texto[idx_np:idx_fim if idx_fim > 0 else len(texto)]
+            trecho_np = re.sub(r'NP Primeira Demais Desconto', '', trecho_np, flags=re.IGNORECASE)
+            opcoes = []
+            for m in re.finditer(r'(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)', trecho_np):
+                opcoes.append({
+                    "num_parcelas": int(m.group(1)),
+                    "primeira":     float(m.group(2).replace(".","").replace(",",".")),
+                    "demais":       float(m.group(3).replace(".","").replace(",",".")),
+                    "desconto":     float(m.group(4).replace(".","").replace(",",".")),
+                })
+            if opcoes:
+                r["parcelamento_opcoes"] = opcoes
 
     # Total da certidão: "Totais: 339,64 ... 409,56"
     m_tot = re.search(r'Totais:\s+[\d.,]+(?:\s+[\d.,]+){3}\s+([\d.,]+)', texto, re.IGNORECASE)
@@ -1176,9 +1272,10 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     return blocos_para_xml(blocos)
 
 
-def montar_estadual(estadual, site_contrib=None):
+def montar_estadual(estadual, site_contrib=None, icms=None):
     blocos = []
-    if not estadual.get("tem_debitos"):
+    tem_icms = bool(icms and icms.get("encontrado") and icms.get("total", 0) > 0)
+    if not estadual.get("tem_debitos") and not tem_icms:
         blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
         for c in estadual.get("certidaos",[]):
             orgao = c.get("orgao",""); num = c.get("numero",""); val = c.get("validade","")
@@ -1187,6 +1284,17 @@ def montar_estadual(estadual, site_contrib=None):
             blocos.append({"type":"normal_bold","text":f"{prefix} nº ","bold":f"{num} ({orgao}){val_txt}: Sem débitos."})
     else:
         blocos.append({"type":"normal","text":"Débitos encontrados. Verificar certidões."})
+
+    # Simulação de Parcelamento ICMS — Site do Contribuinte (SEFAZ-SP)
+    if tem_icms:
+        blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Dívida Ativa: ICMS DEVIDO*"})
+        blocos.append({"type":"italic",
+            "text": f"ICMS Devido — {icms['quantidade_dividas']} inscrição(ões) negociável(is)"})
+        if icms.get("num_parcelas"):
+            blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
+                "bold": f"{icms['num_parcelas']}x de {fmt(icms['valor_parcela'])} — Total: {fmt(icms['total'])}"})
+        else:
+            blocos.append({"type":"bullet","normal":"Total: ","bold": fmt(icms['total'])})
 
     # Site do Contribuinte — pendências GIA/EFD
     if site_contrib and site_contrib.get("encontrado") and site_contrib.get("pendencias"):
@@ -1428,6 +1536,18 @@ def montar_municipal(municipal, hoje):
         if municipal.get("total",0) > 0:
             blocos.append({"type":"normal_bold","text":"Total a pagar: ","bold":fmt(municipal["total"])})
         blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
+
+        # Opções de parcelamento (Simulação de Débitos — Fiorilli): mostra a opção
+        # com mais parcelas (menor valor mensal), igual ao critério usado nos demais
+        # parcelamentos do memorando.
+        opcoes = municipal.get("parcelamento_opcoes")
+        if opcoes:
+            melhor = max(opcoes, key=lambda o: o["num_parcelas"])
+            qtd = len(municipal.get("debitos", []))
+            blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Débitos da prefeitura*"})
+            blocos.append({"type":"italic","text":f"Débitos — {qtd} inscrição(ões) negociável(is)"})
+            blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
+                "bold": f"{melhor['num_parcelas']}x de {fmt(melhor['demais'])} — Total: {fmt(municipal.get('total', melhor['demais']*melhor['num_parcelas']))}"})
     return blocos_para_xml(blocos)
 
 
@@ -1502,7 +1622,7 @@ def main():
 
     if tem_sub:
         print("Modo subpastas detectado.")
-        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_site_contribuinte"}, "municipal":{"municipal"}}
+        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_site_contribuinte","estadual_icms_parcelamento"}, "municipal":{"municipal"}}
         for sub, tipos_validos in mapa.items():
             caminho_sub = os.path.join(pasta_pdfs, sub)
             if not os.path.isdir(caminho_sub): continue
@@ -1536,6 +1656,7 @@ def main():
     reg_valores     = extrair_regularize_valores(get("regularize_valores"))
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
+    icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
     municipal   = extrair_municipal(get("municipal"))
     hoje        = date.today().strftime("%d.%m.%Y")
 
@@ -1569,7 +1690,7 @@ def main():
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
         "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas),
-        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib),
+        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
@@ -1580,7 +1701,7 @@ def main():
 
     json_path = output.replace(".docx","_dados.json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"municipal":municipal}, f, ensure_ascii=False, indent=2)
+        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"municipal":municipal}, f, ensure_ascii=False, indent=2)
     print(f"JSON exportado: {json_path}")
 
 if __name__ == "__main__":
