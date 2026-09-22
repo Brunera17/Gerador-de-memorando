@@ -347,7 +347,7 @@ def extrair_declaracoes_omissas(texto):
         periodos_fmt = _formatar_periodos_dctf(periodos_raw)
         if periodos_fmt:
             r["declaracoes"].append({"tipo":"DCTFWeb","periodos":[periodos_raw],
-                "descricao":f"Referente aos períodos: {periodos_fmt}.","multa_unitaria":200.0})
+                "descricao":f"Referente aos períodos: {periodos_fmt}.","multa_unitaria":250.0})
             r["encontrado"] = True
 
     # DCTF
@@ -359,7 +359,7 @@ def extrair_declaracoes_omissas(texto):
         anos = re.findall(r"\d{4}", m_dctf.group(1))
         if anos:
             r["declaracoes"].append({"tipo":"DCTF","periodos":anos,
-                "descricao":f"Referente aos anos: {_formatar_lista(anos)}.","multa_unitaria":200.0})
+                "descricao":f"Referente aos anos: {_formatar_lista(anos)}.","multa_unitaria":250.0})
             r["encontrado"] = True
 
     # ECF
@@ -371,29 +371,29 @@ def extrair_declaracoes_omissas(texto):
         anos = re.findall(r"\d{4}", m_ecf.group(1))
         if anos:
             r["declaracoes"].append({"tipo":"ECF","periodos":anos,
-                "descricao":f"Referente aos anos: {_formatar_lista(anos)}.","multa_unitaria":200.0})
+                "descricao":f"Referente aos anos: {_formatar_lista(anos)}.","multa_unitaria":250.0})
             r["encontrado"] = True
 
-    # EFD-CONTRIBUICOES
+    # EFD-CONTRIBUICOES — alguns relatórios truncam o rótulo para "EFD-CONTRIB",
+    # sem o sufixo "UIÇÕES" (limite de coluna do relatório de origem)
     m_efd = re.search(
-        r'Omiss.o de EFD.CONTRIBUI..ES[^\n]*\n\((?:Ano|Per.odo)[^)]*\)\s*(.+?)(?=\n\n|\n[A-Z*]|$)',
+        r'Omiss.o de EFD.CONTRIB(?:UI..ES)?[^\n]*\n\((?:Ano|Per.odo)[^)]*\)\s*(.+?)(?=\n\n|\n[A-Z*]|$)',
         texto, re.IGNORECASE | re.DOTALL
     )
     if m_efd:
         anos = re.findall(r"\d{4}", m_efd.group(1))
         if anos:
             r["declaracoes"].append({"tipo":"EFD-CONTRIBUIÇÕES","periodos":anos,
-                "descricao":f"Referente aos anos: {_formatar_lista(anos)}.","multa_unitaria":200.0})
+                "descricao":f"Referente aos anos: {_formatar_lista(anos)}.","multa_unitaria":250.0})
             r["encontrado"] = True
 
     # Calcular total de multas
+    # DCTFWeb: multa única, não por mês/ano listado no período (ao regularizar a
+    # primeira competência em aberto, as demais deixam de ser cobradas).
     total = 0.0
     for decl in r["declaracoes"]:
         if decl["tipo"] == "DCTFWeb":
-            meses = len(re.findall(
-                r"\b(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b",
-                decl["periodos"][0], re.IGNORECASE))
-            total += decl["multa_unitaria"] * max(meses, 1)
+            total += decl["multa_unitaria"]
         else:
             total += decl["multa_unitaria"] * len(decl["periodos"])
     r["total_multas"] = total
@@ -542,6 +542,36 @@ def extrair_parcelamento_dau(texto):
         val  = float(m.group(4).replace(".","").replace(",","."))
         r["inscricoes"].append({"inscricao":num,"data":data,"situacao":sit,"valor":val})
 
+    # Formato 2b: o PDF do Regularize às vezes quebra a linha da tabela em vários
+    # fragmentos (inscrição, situação e valor saem intercalados em linhas soltas),
+    # e o padrão acima — que espera tudo numa linha só — não bate com nada.
+    # Cada registro ocupa ~5 linhas soltas, e o início da "Situação" costuma vir
+    # na linha ANTES do número da inscrição (o resto da coluna quebra depois,
+    # junto com data/valor) — por isso cada bloco inclui a linha anterior.
+    if not r["inscricoes"]:
+        marcador = re.compile(r'\d{2}\s+\d\s+\d{2}\s+[\d-]+')
+        linhas = texto.split("\n")
+        idx_insc = [i for i, l in enumerate(linhas) if marcador.search(l)]
+        vocab_situacao = (r'ATIVA|N[ÃA]O|AJUIZ[ÁA]VEL|AJUIZADA|A|SER|EM|COBRAN[ÇC]A|'
+                           r'NEGOCIADAS?|GARANTIDAS?|SUSPENSAS?|EXTINTAS?|NO|SISPAR')
+        for j, li in enumerate(idx_insc):
+            inicio = max(0, li - 1)
+            fim = (idx_insc[j + 1] - 1) if j + 1 < len(idx_insc) else len(linhas)
+            bloco = "\n".join(linhas[inicio:fim])
+            m_num = marcador.search(bloco)
+            m_val = re.search(r'R\$\s*([\d.,]+)', bloco)
+            if not m_num or not m_val:
+                continue
+            m_data = re.search(r'\d{2}/\d{2}/\d{4}', bloco)
+            palavras_sit = re.findall(r'\b(?:' + vocab_situacao + r')\b', bloco.upper())
+            situacao = " ".join(palavras_sit) if palavras_sit else "ATIVA EM COBRANÇA"
+            r["inscricoes"].append({
+                "inscricao": m_num.group(0).strip().replace(" ", "."),
+                "data": m_data.group(0) if m_data else "",
+                "situacao": situacao,
+                "valor": float(m_val.group(1).replace(".", "").replace(",", ".")),
+            })
+
     # Receita do consolidado (ex: "Simples Nacional (2)")
     m_rec = re.search(r'(Simples Nacional|COFINS|PIS|IRPJ|CSLL|FGTS)[^\n]*\(\d+\)', texto, re.IGNORECASE)
     if m_rec and not r["receita"]:
@@ -680,11 +710,18 @@ def extrair_parcelamento_sispar(texto):
         if m:
             opcao["modalidade"] = m.group(1).strip()[:80]
 
-        # Quantas dívidas negociáveis
-        m = re.search(r'Identificamos que (\d+) das (\d+) dívidas', bloco, re.IGNORECASE)
+        # Quantas dívidas negociáveis — o Regularize varia a frase conforme o caso:
+        # "N das M dívidas" (parcial), "todas as N dívidas" (100%) ou "a única dívida" (N=1)
+        m = re.search(r'Identificamos que (\d+) das (\d+) d[íi]vidas', bloco, re.IGNORECASE)
         if m:
             opcao["num_dividas"]   = int(m.group(1))
             opcao["total_dividas"] = int(m.group(2))
+        else:
+            m_todas = re.search(r'Identificamos que todas as (\d+) d[íi]vidas', bloco, re.IGNORECASE)
+            if m_todas:
+                opcao["num_dividas"] = opcao["total_dividas"] = int(m_todas.group(1))
+            elif re.search(r'Identificamos que a [uú]nica d[íi]vida', bloco, re.IGNORECASE):
+                opcao["num_dividas"] = opcao["total_dividas"] = 1
 
         # Total a pagar
         m = re.search(r'Total a pagar[^\n]*\n[^\n]*R\$\s*([\d.,]+)', bloco)
@@ -922,7 +959,10 @@ def blocos_para_xml(blocos):
         elif t == "separator":
             xml.append(wp_sep())
         elif t == "divida":
-            xml.append(wp(before=100, after=40) + wr("Dívida Ativa — ", bold=True) + wr(b.get("receita",""), bold=True) + "</w:p>")
+            titulo = "Dívida Ativa — "
+            if b.get("todas_negociadas"):
+                titulo = "Dívida Ativa (já em parcelamento) — "
+            xml.append(wp(before=100, after=40) + wr(titulo, bold=True) + wr(b.get("receita",""), bold=True) + "</w:p>")
             # Múltiplas inscrições (relatório consolidado)
             if b.get("inscricoes"):
                 for insc in b["inscricoes"]:
@@ -938,6 +978,14 @@ def blocos_para_xml(blocos):
                 xml.append(wp(before=0, after=40) + wr("Inscrição nº ") + wr(b.get("inscricao",""), bold=True) + wr(f' — inscrita em {b.get("data","")}') + "</w:p>")
                 xml.append(wp(before=0, after=40) + wr(f'Principal: {b.get("principal","")} | Multa: {b.get("multa","")} | Juros: {b.get("juros","")} | Encargo: {b.get("encargo","")}') + "</w:p>")
                 xml.append(wp(before=0, after=40) + wr("Valor total consolidado: ") + wr(b.get("total",""), bold=True) + wr(" — Situação: ") + wr(b.get("situacao",""), bold=True) + "</w:p>")
+            if b.get("todas_negociadas"):
+                xml.append(wp(before=0, after=40) + wr(
+                    "* Inscrições já negociadas — parcelamento em andamento, não é necessário negociar novamente.",
+                    italic=True, color="595959") + "</w:p>")
+            elif b.get("situacao_negociada"):
+                xml.append(wp(before=0, after=40) + wr(
+                    "* Parte das inscrições já está negociada (parcelamento em andamento) — ver situação de cada uma acima.",
+                    italic=True, color="595959") + "</w:p>")
             if b.get("protesto"):
                 xml.append(wp(before=0, after=40) + wr("⚠ Inscrição enviada para protesto — regularização no tabelionato.", bold=True, color="C00000") + "</w:p>")
         elif t == "parc_sn":
@@ -1071,12 +1119,23 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
                 "situacao":  insc["situacao"],
                 "valor":     insc["valor"]
             })
+        # Inscrições com situação "NEGOCIADA" já estão em parcelamento ativo (ex.: SISPAR) —
+        # não são dívida em aberto à espera de negociação, e o texto não pode dar a entender isso.
+        if inscricoes_fmt:
+            qtd_negociadas = sum(1 for i in inscricoes_fmt if "NEGOCIADA" in i["situacao"].upper())
+            situacao_negociada = qtd_negociadas > 0
+            todas_negociadas = qtd_negociadas == len(inscricoes_fmt)
+        else:
+            situacao_negociada = "NEGOCIADA" in parc_dau.get("situacao","").upper()
+            todas_negociadas = situacao_negociada
         blocos.append({
             "type":      "divida",
             "receita":   parc_dau.get("receita",""),
             "inscricao": parc_dau.get("inscricao",""),
             "data":      parc_dau.get("data_inscricao",""),
             "situacao":  parc_dau.get("situacao",""),
+            "situacao_negociada": situacao_negociada,
+            "todas_negociadas":   todas_negociadas,
             "principal": fmt(parc_dau.get("principal",0)),
             "multa":     fmt(parc_dau.get("multa",0)),
             "juros":     fmt(parc_dau.get("juros",0)),

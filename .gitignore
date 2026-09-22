@@ -220,6 +220,8 @@ __marimo__/
 # ---------------------------------------------------------------
 # Dados de clientes / sensíveis — NUNCA versionar
 # ---------------------------------------------------------------
+# Casos de teste (PDFs de origem + memorandos validados de clientes e não clientes)
+casos/
 # PDFs de consulta fiscal (situação fiscal, parcelamentos, CND, etc.)
 pdfs/
 *.pdf

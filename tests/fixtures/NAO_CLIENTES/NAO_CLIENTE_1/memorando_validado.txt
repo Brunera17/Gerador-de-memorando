@@ -1,0 +1,47 @@
+
+Consulta da empresa: EMPRESA MODELO GAMA 
+CNPJ: 33.333.333/0001-33
+Consulta realizada no dia 02/09/2026
+Âmbito Federal
+Declarações em atraso:
+• DCTFWeb — Referente aos períodos: 2025 (jan a dez) e 2026 (jan a jun).
+Valor da multa: R$ 250,00 por declaração (Redução de 50% desse valor se pago dentro do prazo).
+
+Referente à guias do imposto do MAED DASN-SIMEI 01/06/2022.
+• Referente ao mês 06/2022 – R$ 75,17.
+(valores atualizados no dia 02.09.2026)
+
+
+*PARCELAMENTO —DÍVIDA ATIVA*
+Simples Nacional — situação: ATIVO
+• Parcelamento Convencional:27x de R$ 25,38 — Total: R$ 685,30.
+Parcelamento em dia com a Receita.
+
+*PARCELAMENTO —DÍVIDA ATIVA*
+Simples Nacional — situação: ATIVO
+• Parcelamento Convencional: 60x de R$ 31,49 — Total: R$ 1.889,47.
+Parcelamento em dia com a Receita.
+
+
+
+*PARCELAMENTO — MEI*
+Simples Nacional MEI — situação: ATIVO
+Devido à instabilidade do site, não foi possível consultar o valor da guia em aberto. Entretanto, consta em aberto 1 parcela.
+02/09/2026
+
+Âmbito Estadual
+De acordo com o relatório do CADESP, a empresa consta como INAPTA, sendo assim não é possível averiguar com certeza os débitos Estaduais.
+02/09/2026
+
+Âmbito Municipal
+Taxa de licença e funcionamento ano de 2026.</w:r><w:r w:rsidRPr="02147316"><w:rPr><w:b/><w:bCs/></w:rPr><w:t>• Valor – R$ 286,08.  
+02/09/2026
+
+RESUMO
+• Âmbito Federal: R$ 325,17 (Aproximadamente, com possibilidade de redução das multas)
+Honorários contábeis para regularização:
+DCTFWeb sem movimento (1x): R$ 180,00.
+Geração da MAED: R$ 20,00.
+Retificação da taxa de funcionamento: R$ 20,00.
+Subtotal honorários: R$ 220,00.
+VALOR TOTAL PARA REGULARIZAÇÃO: R$ 545,17.
