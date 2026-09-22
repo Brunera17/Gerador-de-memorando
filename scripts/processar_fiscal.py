@@ -54,6 +54,10 @@ def classificar_pdf(texto):
             or ("situação da inscrição" in t and "receita da dívida" in t)
             or ("situacao da inscricao" in t and "receita da divida" in t)):
         return "parcelamento_dau"
+    if "emissão de documento de arrecadação" in t and "negociações:" in t:
+        return "parcelamento_pgdau_prestacoes"
+    if "parcelas disponíveis para impressão" in t and "parcela" in t and "valor" in t:
+        return "parcelamento_mei_emissao"
     if "parcelamento do simples nacional" in t and "nome empresarial" in t:
         if "valores dos débitos não são suficientes" in t or "valores dos debitos nao sao suficientes" in t:
             return "parc_sn_indisponivel"
@@ -584,6 +588,75 @@ def extrair_parcelamento_dau(texto):
     return r
 
 
+def extrair_pgdau_prestacoes(texto):
+    """Extrai o detalhamento de parcelas de um parcelamento de dívida ativa (PGDAU)
+    a partir da tela "Emissão de Documento de Arrecadação" do site da PGFN.
+    Baseado em um único exemplo real — layout pode variar em outros casos.
+    """
+    r = {"encontrado": False, "total_parcelas": 0, "valor_consolidado": 0.0,
+         "valor_parcela_atual": 0.0, "mes_parcela_atual": "", "parcelas_restantes": 0}
+    if not texto:
+        return r
+    r["encontrado"] = True
+
+    m = re.search(r'Total de Parcelas:\s*(\d+)', texto, re.IGNORECASE)
+    if m: r["total_parcelas"] = int(m.group(1))
+    # "Valor ... consolidado:" e "Saldo Devedor sem ... Juros:" ficam lado a lado no
+    # layout e o pdfplumber intercala rótulo/rótulo/valor/valor em vez de rótulo+valor
+    m = re.search(r'Valor\s+Saldo Devedor sem\s*\n\s*([\d.,]+)\s+([\d.,]+)',
+                   texto, re.IGNORECASE)
+    if m:
+        r["valor_consolidado"] = float(m.group(1).replace(".", "").replace(",", "."))
+    else:
+        m = re.search(r'Valor\s+consolidado:\s*([\d.,]+)', texto, re.IGNORECASE | re.DOTALL)
+        if m: r["valor_consolidado"] = float(m.group(1).replace(".", "").replace(",", "."))
+
+    # Linha de cada prestação: "Nr ValorOriginário ValorSdDevedor DataVencPrestação
+    # [DataVencDocArrec [NrDocumento]]" — as duas últimas colunas só aparecem quando
+    # já existe documento de arrecadação emitido para aquela prestação.
+    padrao = re.compile(
+        r'^(\d{4})\s+([\d.,]+)\s+([\d.,]+)\s+(\d{2}/\d{2}/\d{4})'
+        r'(?:\s+\d{2}/\d{2}/\d{4}(?:\s+\d+)?)?\s*$',
+        re.MULTILINE)
+    pendentes = []
+    for m in padrao.finditer(texto):
+        sd_devedor = float(m.group(3).replace(".", "").replace(",", "."))
+        if sd_devedor > 0:
+            pendentes.append({
+                "valor": float(m.group(2).replace(".", "").replace(",", ".")),
+                "vencimento": m.group(4),
+            })
+
+    # A "parcela atual" é a primeira ainda com saldo devedor — as demais entram
+    # como "restantes" (mesmo critério usado nos memorandos já validados)
+    if pendentes:
+        atual = pendentes[0]
+        r["valor_parcela_atual"] = atual["valor"]
+        r["mes_parcela_atual"] = atual["vencimento"][3:]  # "MM/AAAA"
+        r["parcelas_restantes"] = len(pendentes) - 1
+
+    return r
+
+
+def extrair_mei_emissao_parcela(texto):
+    """Extrai as parcelas em atraso a partir da tela "Emissão de Parcela" do
+    eCAC (lista de meses disponíveis para impressão, um valor por mês).
+    Baseado em um único exemplo real — layout pode variar em outros casos.
+    """
+    r = {"encontrado": False, "quantidade": 0, "valor_parcela": 0.0, "total": 0.0}
+    if not texto:
+        return r
+    valores = [float(v.replace(".", "").replace(",", "."))
+               for _, v in re.findall(r'(\d{2}/\d{4})\s+R\$\s*([\d.,]+)', texto)]
+    if not valores:
+        return r
+    r["encontrado"] = True
+    r["quantidade"] = len(valores)
+    r["valor_parcela"] = valores[0]  # valor mensal costuma ser uniforme
+    r["total"] = round(sum(valores), 2)
+    return r
+
+
 def extrair_regularize_valores(texto):
     """Extrai valores individuais das inscrições do Regularize (Vamos Negociar!)."""
     r = {"encontrado": False, "inscricoes": [], "total": 0.0}
@@ -1110,7 +1183,8 @@ def blocos_para_xml(blocos):
 # 4. MONTAGEM DOS TEXTOS
 # ══════════════════════════════════════════════════════════
 
-def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas):
+def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas,
+                    pgdau_prest=None, mei_emissao=None):
     blocos = []
     if federal.get("certidao_numero"):
         val = (f" (válida até {federal['certidao_validade']})" if federal.get("certidao_validade") else "")
@@ -1132,6 +1206,22 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     if federal.get("parcelamento_ativo"):
         blocos.append({"type":"date",
             "text": f"Parcelamento com Exigibilidade Suspensa — {federal['parcelamento_ativo']} (débitos suspensos, não exigíveis)"})
+
+    # Parcelas em atraso de parcelamentos já ativos — MEI (eCAC) e Dívida Ativa (PGFN)
+    tem_mei_atraso = mei_emissao and mei_emissao.get("encontrado")
+    tem_dau_atraso = pgdau_prest and pgdau_prest.get("encontrado") and pgdau_prest.get("valor_parcela_atual", 0) > 0
+    if tem_mei_atraso or tem_dau_atraso:
+        blocos.append({"type":"label","text":"Débitos:"})
+        if tem_mei_atraso:
+            blocos.append({"type":"bullet",
+                "normal": f"PARCELAMENTO MEI ATRASO – {mei_emissao['quantidade']} parcelas de {fmt(mei_emissao['valor_parcela'])} totalizando ",
+                "bold": fmt(mei_emissao['total']) + "."})
+        if tem_dau_atraso:
+            blocos.append({"type":"bullet",
+                "normal": f"PARCELAMENTO DÍVIDA ATIVA – parcela do mês {pgdau_prest['mes_parcela_atual']} de ",
+                "bold": fmt(pgdau_prest['valor_parcela_atual']) +
+                        (f" (Restando {pgdau_prest['parcelas_restantes']} parcelas a vencer)"
+                         if pgdau_prest.get("parcelas_restantes", 0) > 0 else "") + "."})
 
     if federal.get("debitos"):
         por_receita = {}
@@ -1615,7 +1705,7 @@ def main():
         sys.exit(1)
 
     pasta_pdfs, template, output = sys.argv[1], sys.argv[2], sys.argv[3]
-    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores"}
+    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao"}
     textos = {}
 
     tem_sub = any(os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"])
@@ -1654,6 +1744,8 @@ def main():
     parc_dau    = extrair_parcelamento_dau(get("parcelamento_dau"))
     parc_sispar     = extrair_parcelamento_sispar(get("parcelamento_sispar"))
     reg_valores     = extrair_regularize_valores(get("regularize_valores"))
+    pgdau_prest = extrair_pgdau_prestacoes(get("parcelamento_pgdau_prestacoes"))
+    mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
     icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
@@ -1689,7 +1781,7 @@ def main():
         "NOME_EMPRESA":             nome or "EMPRESA NÃO IDENTIFICADA",
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
-        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas),
+        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao),
         "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores),
@@ -1701,7 +1793,7 @@ def main():
 
     json_path = output.replace(".docx","_dados.json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"municipal":municipal}, f, ensure_ascii=False, indent=2)
+        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"municipal":municipal}, f, ensure_ascii=False, indent=2)
     print(f"JSON exportado: {json_path}")
 
 if __name__ == "__main__":

@@ -42,12 +42,18 @@ LABEL_PATTERNS = [
     r"Contribuinte:\s*([^\n]+?)(?:\s+CPF/CNPJ|\s+CNPJ|\s*$)",
     r"Devedor:\s*([^\n]+)",
     r"Nome Empresarial[:\s]+([^\n]+)",
+    r"\bNome:\s*([^\n]+)",
     r"Raz[aã]o Social\s*[:\-]?\s*([^\n]+)",
     r"CNPJ[:\s]+[\d./\-]+\s*[-–]\s*([^\n]{3,80})",
     r"Respons[aá]vel[:\s]+[\d./\-]{0,18}\s*[-–]?\s*([^\n]{3,80})",
     r"S[oó]cio[:\s]+[\d./\-]{0,18}\s*[-–]?\s*([^\n]{3,80})",
     r"Titular[:\s]+[\d./\-]{0,18}\s*[-–]?\s*([^\n]{3,80})",
     r"Procurador[:\s]+([^\n]{3,80})",
+    # variações com texto extra entre o rótulo e o ":" (ex.: portais do governo)
+    # "Titular (Acesso GOV.BR por Certificado): 12.345.678/0001-90 - FULANO DE TAL"
+    r"Titular[^:\n]{0,60}:\s*[\d./\-]{0,18}\s*[-–]?\s*([^\n]{3,80})",
+    # "Procurador de: 12.345.678/0001-90 - FULANO DE TAL"
+    r"Procurador\s+de:?\s*[\d./\-]{0,18}\s*[-–]?\s*([^\n]{3,80})",
 ]
 LIXO = ["sair", "localizar", "acesso", "mensagens", "perfil", "dados do", "procurador",
         "consultas", "pagamentos", "certid", "precat", "legisla", "atendimento", "transpar"]
@@ -198,12 +204,28 @@ def montar_substituicoes(textos, nome_fake, cnpj_fake):
     return subs, variantes_nome, cnpjs
 
 
+def linha_embaralhada(linha, limite=0.33):
+    """Detecta linhas onde o pdfplumber intercalou duas camadas de texto do PDF
+    (ex.: um título sobreposto a uma linha "Nome Empresarial: FULANO DE TAL"),
+    resultando numa mistura de maiúsc./minúsc. anormal — o nome real pode ficar
+    "escondido" nas letras maiúsculas sem formar uma substring reconhecível, o
+    que nenhuma checagem de substring (nem a nossa) pegaria."""
+    letras = [c for c in linha if c.isalpha()]
+    if len(letras) < 12:
+        return False
+    transicoes = sum(1 for a, b in zip(letras, letras[1:]) if a.isupper() != b.isupper())
+    return (transicoes / len(letras)) > limite
+
+
 def aplicar(texto, subs):
     for pat, novo in subs:
         texto = pat.sub(novo, texto)
     texto = re.sub(r"(?im)^(Endere[cç]o:).*$", r"\1 <ENDEREÇO OCULTADO>", texto)
     texto = re.sub(r"(?im)^(Rua|Av\.|Avenida|Pra[cç]a)\s+[^\n]+", "<ENDEREÇO OCULTADO>", texto)
-    return texto
+    linhas = texto.split("\n")
+    linhas = ["<linha com texto sobreposto no PDF original — removida por segurança>"
+              if linha_embaralhada(l) else l for l in linhas]
+    return "\n".join(linhas)
 
 
 def checar_residuos(texto, variantes_nome, cnpjs):

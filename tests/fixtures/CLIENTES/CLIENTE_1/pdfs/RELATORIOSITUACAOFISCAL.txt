@@ -32,7 +32,7 @@ Certidão Positiva com Efeitos de Negativa: F304.488D.44E7.0F3E Emissão: 19/01/
 _____________________________________ Diagnóstico Fiscal na Receita Federal _____________________________________
 Pendência - Débito (SIEF) _______________________________________________________________________________________
 CNPJ: 11.111.111/0001-11
-Receita PA/Exerc. Dt. Vcto Vl. Original Sdo. Devedor Multa Juros Sdo. Dev. Cons. Situação
+<linha com texto sobreposto no PDF original — removida por segurança>
 8109-02 - PIS 04/2026 25/05/2026 42,44 42,44 8,48 1,88 52,80 DEVEDOR
 2172-01 - COFINS 04/2026 25/05/2026 195,90 195,90 39,18 8,67 243,75 DEVEDOR
 MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
@@ -95,7 +95,7 @@ CNPJ: 11.111.111 - EMPRESA MODELO ALFA
 1200-01 - CP-TERCEIROS 07/2026 20/08/2026 9,72 9,72 0,93 0,09 10,74 DEVEDOR
 Débito com Exigibilidade Suspensa (SIEF) ________________________________________________________________________
 CNPJ: 11.111.111/0001-11
-Receita PA/Exerc. Dt. Vcto Vl.Original Sdo.Devedor Situação
+<linha com texto sobreposto no PDF original — removida por segurança>
 1138-01 - CP-PATRONAL 08/2026 18/09/2026 324,20 310,69 A ANALISAR-A VENCER
 1646-01 - CP-PATRONAL 08/2026 18/09/2026 16,21 16,21 A ANALISAR-A VENCER
 1170-01 - CP-TERCEIROS 08/2026 18/09/2026 40,52 40,52 A ANALISAR-A VENCER

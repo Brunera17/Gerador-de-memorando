@@ -1,0 +1,57 @@
+Procuradoria Geral da Fazenda Nacional Sessão: 19:51
+PPGGFFNN
+Data e Hora de login: 22/09/2026 14:02:45
+PPrrooccuurraaddoorriiaa Usuário: 22.222.222/0001-22 - EMPRESA MODELO BETA 11111111111 Produção - 2.6.5 (BUILD 1)
+GGeerraall ddaa
+Consulta Adesão Emissão de Documento Débito automático
+FFaazzeennddaa Capacidade de pagamento Declaração de Receita
+NNaacciioonnaall -- Sair EMISSÃO DE DOCUMENTO DE ARRECADAÇÃO - INTERNET
+PPGGFFNN
+Dados da Negociações
+Negociações: 0092 - TRANSACAO POR ADESAO EDITAL PGDAU 062026 Nr. Referência Conta: 016493196
+0134 - MICROEMPREENDEDOR INDIVIDUAL PEQUENO VALOR REDUCAO ATE 50 ATE 60
+Modalidade: Data da Adesão: 07/07/2026
+MESES
+Contribuinte: 22.222.222/0001-22 - EMPRESA MODELO BETA 11111111111 Total de Parcelas: 28
+Valor Saldo Devedor sem
+3.778,20 3.643,27
+consolidado: Juros:
+Nr. Recibo: -
+Prestação
+Data Vencimento Data Vencimento Nr. Documento
+Nr. Prestação Valor Originário Valor Sd. Devedor Emissão Limpar
+Prestação Doc. Arrec. Cobrança
+0001 134,93 0,00 31/07/2026 31/07/2026
+0002 134,93 134,93 31/08/2026 30/09/2026 07172625877892988
+0003 134,93 134,93 30/09/2026 30/09/2026 07172625877901537
+0004 134,93 134,93 30/10/2026
+0005 134,93 134,93 30/11/2026
+0006 134,93 134,93 30/12/2026
+0007 134,93 134,93 29/01/2027
+0008 134,93 134,93 26/02/2027
+0009 134,93 134,93 31/03/2027
+0010 134,93 134,93 30/04/2027
+0011 134,93 134,93 31/05/2027
+0012 134,93 134,93 30/06/2027
+0013 134,93 134,93 30/07/2027
+0014 134,93 134,93 31/08/2027
+0015 134,93 134,93 30/09/2027
+0016 134,93 134,93 29/10/2027
+0017 134,93 134,93 30/11/2027
+0018 134,93 134,93 30/12/2027
+0019 134,93 134,93 31/01/2028
+0020 134,93 134,93 25/02/2028
+0021 134,93 134,93 31/03/2028
+0022 134,93 134,93 28/04/2028
+0023 134,93 134,93 31/05/2028
+0024 134,93 134,93 30/06/2028
+0025 134,93 134,93 31/07/2028
+0026 134,93 134,93 31/08/2028
+0027 134,93 134,93 29/09/2028
+0028 134,93 134,93 31/10/2028
+Voltar
+Para melhorar a sua experiência na plataforma e prover serviços personalizados, utilizamos cookies. Ao aceitar, você terá acesso a todas as funcionalidades do site
+Se clicar em 'Rejeitar Cookies', os cookies que não forem estritamente necessários serão desativados. Saiba mais em nossa Declaração de Cookies..
+Permitir Rejeitar
+PGFN - Todos os direitos reservados
+Esplanada dos Ministérios - Bloco "P" - 8º andar - CEP: 70.048-900 Brasília/DF

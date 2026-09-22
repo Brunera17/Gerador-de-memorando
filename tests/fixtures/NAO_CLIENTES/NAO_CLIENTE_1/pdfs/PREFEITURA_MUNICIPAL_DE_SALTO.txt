@@ -4,7 +4,7 @@ Prefeitura da Estância Turística de Salto Home
 Manuais e Instruções IPTU
 Para utilizar outra inscrição clique aqui
 Inscrição:0000158840
-Nome: ALFA MODELO DE EMPRESA 11111111111 Ficha do Imóvel
+Nome: EMPRESA MODELO ALFA
 Certidão Endereço:RUA JAPÃO ,202 BLOCO 16; APTO 5,JARDIM DAS NAÇÕES,SALTO-SP Correção Monetária
 Tipo de Inscrição: 2026
 Mobiliário Lançamentos Edital IPTU 2026
@@ -16,8 +16,8 @@ Certidão Ano:
 FUNCIONAMENTO
 Ok 1 - 1
 Processo TRIBUTOS
-Nº Processo Ano:
-/ Selecionar Nº Guia Data Vencimento Principal Vlr Correção Vlr Multa Vlr Juros Vlr Honorários DA. Vlr Honorários Suc. Tot
+<linha com texto sobreposto no PDF original — removida por segurança>
+<linha com texto sobreposto no PDF original — removida por segurança>
 Ok
 1 30/04/2026 81,02 0 2,43 4,05 8,75 0 96,
 2 29/05/2026 81,02 0 2,43 3,24 8,67 0 95,
