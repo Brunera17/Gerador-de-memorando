@@ -1,0 +1,61 @@
+MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
+SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 22.222.222/0001-22
+PROCURADORIA-GERAL DA FAZENDA NACIONAL 21/09/2026 15:43:36
+INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
+Página: 1 / 2
+CNPJ: 22.222.222 - EMPRESA MODELO BETA
+Dados Cadastrais da Matriz ______________________________________________________________________________________
+CNPJ: 22.222.222/0001-22
+UA de Domicílio: ARF AVARE-SP Código da UA: 08.103.06
+Endereço: <ENDEREÇO OCULTADO>
+Bairro: CENTRO CEP: 18730-039 Município: ITAI UF: SP
+Responsável: 111.111.111-11 - EMPRESA MODELO BETA
+Situação: ATIVA
+Natureza Jurídica: 213-5 - EMPRESARIO (INDIVIDUAL) Data de Abertura: 16/06/2021
+CNAE: 4771-7/01 - Comércio varejista de produtos farmacêuticos, sem manipulação de fórmulas
+Porte da Empresa: MICRO EMPRESA
+Opção pelo Simples Nacional
+Inclusão Exclusão
+16/06/2021 31/12/2026
+Sócios e Administradores ________________________________________________________________________________________
+QUADRO SOCIETÁRIO NÃO OBRIGATÓRIO POR SUA NATUREZA JURÍDICA
+Certidão Emitida ________________________________________________________________________________________________
+CNPJ: 22.222.222/0001-22
+Certidão Positiva com Efeitos de Negativa: 7C33.2822.55FF.E31C Emissão: 01/01/2024 Data de Validade: 29/06/2024
+_____________________________________ Diagnóstico Fiscal na Receita Federal _____________________________________
+Pendência - Débito (SIEF) _______________________________________________________________________________________
+CNPJ: 22.222.222/0001-22
+Receita PA/Exerc. Dt. Vcto Vl. Original Sdo. Devedor Multa Juros Sdo. Dev. Cons. Situação
+0561-07 - IRRF 10/2025 19/11/2025 186,74 186,74 37,34 20,87 244,95 DEVEDOR
+0561-07 - IRRF 11/2025 19/12/2025 186,74 186,74 37,34 18,59 242,67 DEVEDOR
+0561-07 - IRRF 12/2025 20/01/2026 476,80 476,80 95,36 41,95 614,11 DEVEDOR
+1082-01 - CP-SEGUR. 10/2025 19/11/2025 433,28 433,28 86,65 48,44 568,37 DEVEDOR
+1082-01 - CP-SEGUR. 11/2025 19/12/2025 470,66 470,66 94,13 46,87 611,66 DEVEDOR
+1082-01 - CP-SEGUR. 12/2025 20/01/2026 545,42 545,42 109,08 47,99 702,49 DEVEDOR
+1082-01 - CP-SEGUR. 04/2026 20/05/2026 462,58 462,58 92,51 20,49 575,58 DEVEDOR
+1082-01 - CP-SEGUR. 05/2026 19/06/2026 572,76 572,76 114,55 18,95 706,26 DEVEDOR
+1082-01 - CP-SEGUR. 06/2026 20/07/2026 462,58 462,58 92,51 9,66 564,75 DEVEDOR
+MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
+SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 22.222.222/0001-22
+PROCURADORIA-GERAL DA FAZENDA NACIONAL 21/09/2026 15:43:36
+INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
+Página: 2 / 2
+CNPJ: 22.222.222 - EMPRESA MODELO BETA
+1082-01 - CP-SEGUR. 07/2026 20/08/2026 462,58 462,58 48,84 4,62 516,04 DEVEDOR
+1082-21 - CP-SEGUR. 2025 19/12/2025 470,66 470,66 94,13 46,87 611,66 DEVEDOR
+SIMPLES NAC. 04/2026 20/05/2026 36,12 36,12 7,22 1,60 44,94 DEVEDOR
+SIMPLES NAC. 05/2026 22/06/2026 73,08 73,08 14,61 2,41 90,10 DEVEDOR
+SIMPLES NAC. 06/2026 20/07/2026 45,94 45,94 9,18 0,96 56,08 DEVEDOR
+Débito com Exigibilidade Suspensa (SIEF) ________________________________________________________________________
+CNPJ: 22.222.222/0001-22
+Receita PA/Exerc. Dt. Vcto Vl.Original Sdo.Devedor Situação
+1082-01 - CP-SEGUR. 08/2026 18/09/2026 462,58 462,58 A ANALISAR-A VENCER
+__________________________ Diagnóstico Fiscal na Procuradoria-Geral da Fazenda Nacional _________________________
+Pendência - Inscrição (SIDA) ____________________________________________________________________________________
+CNPJ: 22.222.222/0001-22
+Inscrição Receita Inscrito em Ajuizado em Processo Tipo de Devedor
+81.4.26.015899-34 4133-CONTR. 03/08/2026 14922.222.222/0001-22 DEVEDOR PRINCIPAL
+SEGURADOS
+Situação: ATIVA A SER COBRADA
+_________________________________________________________________________________________________________________
+Final do Relatório

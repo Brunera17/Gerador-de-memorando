@@ -1,0 +1,43 @@
+03/08/2026, 15:19 Regularize_Relatorio_Divida_Ativa_03082026-1519
+Relatório de inscrições em dívida
+ativa da União e do FGTS
+Dados obtidos em 03/08/2026 às
+15:19
+Por: EMPRESA MODELO DELTA
+111.111.111-11
+CPF/CNPJ: 44.444.444/0001-44
+Relatório Consolidado da Dívida
+Devedor: EMPRESA MODELO DELTA 111.111.111-11
+CPF/CNPJ: 44.444.444/0001-44
+Naturezas selecionadas: Tributárias / Não Tributárias / Previdenciárias / Simples Nacional / FGTS
+Situações selecionadas: Ativas em Cobrança / Negociadas / Garantidas / Suspensas / Extintas
+
+Relatório - Resumo
+Naturezas selecionadas: Tributárias / Não Tributárias / Dívida total
+Previdenciárias / Simples Nacional / FGTS
+Total de inscrições ativas: 2
+Situações selecionadas: Ativas em Cobrança / Negociadas
+Valor total da dívida*: R$ 7.606,69
+/ Garantidas / Suspensas / Extintas
+Quantidade de inscrições selecionadas*: 2
+Valor das inscrições selecionadas*: R$ 7.606,69
+*Não estão sendo contabilizadas as Inscrições extintas
+OBS: Serão exibidas somente as naturezas e situações selecionadas que contém inscrições.
+https://www.regularize.pgfn.gov.br/consultaDividas/relatorio 1/2
+03/08/2026, 15:19 Regularize_Relatorio_Divida_Ativa_03082026-1519
+Simples Nacional (2) 
+Negociada (2) 
+Inscrição Valor
+Devedor Principal Situação
+Data da Inscrição Consolidado
+ATIVA NAO
+80 4 24 663169-83 EMPRESA MODELO DELTA 278... AJUIZAVEL
+R$ 1.448,39
+24/06/2024 44.444.444/0001-44 NEGOCIADA
+NO SISPAR
+ATIVA NAO
+80 4 23 116206-97 EMPRESA MODELO DELTA 278... AJUIZAVEL
+R$ 6.158,30
+06/02/2023 44.444.444/0001-44 NEGOCIADA
+NO SISPAR
+https://www.regularize.pgfn.gov.br/consultaDividas/relatorio 2/2

@@ -1,0 +1,41 @@
+Governo do Estado de São Paulo
+Site do Contribuinte
+Consultas Pagamentos Certidões Precatório Legislação Atendimento Dúvidas Transparência Sair
+Chrome 143.0.0.0 18/09/2026 11:10 | 20-4
+Adesão ao Parcelamento ICMS Resolução Conjunta SFP/PGE - 02 2021
+Simulação do Parcelamento Informação do Solicitante Termo de Aceite
+Devedor: EMPRESA MODELO ALFA
+CNPJ/CPF: 11.111.111/0001-11
+Órgão de Origem: SECRETARIA DA FAZENDA E PLANEJAMENTO
+Tipo de Débito: ICMS Declarado
+Atenção!
+Para efetivar o parcelamento, altere a quantidade de parcelas
+e clique em "Simular" antes de clicar em "Avançar".
+Para segundo parcelamento de condição até 60 parcelas:
+Entrada de 10%, nos termos do art. 2º, §3º, inciso I, da Resolução Conjunta SFP/PGE nº 02, de 29 de setembro de 2021
+Para terceiro parcelamento de condição até 60 parcelas:
+Entrada de 20%, nos termos do art. 2º, §3º, inciso II, da Resolução Conjunta SFP/PGE nº 02, de 29 de setembro de 2021.
+* O valor da parcela mínima é de R$ 500,00 (Quinhentos reais), com exceção do pagamento em uma única parcela.
+Condições de Parcelamentos Disponíveis
+Quantidade de Parcelamentos Quantidade de Parcelas
+2 12
+1 24
+1 36
+3 60
+DÉBITOS SELECIONADOS
+Principal Corrigido Juros Moratórios Multas Honorários Advocatícios Honorários Administrativos Total Quantidade
+623,18 135,04 124,64 0,00 88,29 971,15 2
+SIMULAÇÃO DO PARCELAMENTO
+RESUMO DO PARCELAMENTO
+Juros Honorários Honorários Acréscimo
+Principal Corrigido Multas Total Quantidade
+Moratórios Advocatícios Administrativos Financeiro *
+623,18 135,04 124,64 0,00 88,29 0,00 971,15 1 Simular
+Principal Juros Honorários Honorários Acréscimo
+Número Data de Vencimento Multas Total
+Corrigido Moratórios Advocatícios Administrativos Financeiro *
+1 26/10/2026 623,18 135,04 124,64 0,00 88,29 0,00 971,15
+* As parcelas sofrerão acréscimos na emissão da GARE, em virtude do acréscimo financeiro que será calculado com base na taxa Selic divulgada
+mensalmente.
+Nova Consulta Avançar
+Procuradoria Geral do Estado de São Paulo

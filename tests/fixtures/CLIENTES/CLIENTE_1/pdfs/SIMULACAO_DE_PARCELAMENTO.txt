@@ -1,0 +1,26 @@
+PREFEITURA MUNICIPAL DE ITAI
+CNPJ: 11111111000111
+Municipio de Itai - Telefone: 0800 090 6650
+<ENDEREÇO OCULTADO>
+Simulação de débitos
+Filtros aplicados ao relatório: Data de referência igual a 18/09/2026
+Contribuinte: EMPRESA MODELO ALFA CPF/CNPJ:
+Endereço: <ENDEREÇO OCULTADO>
+Setor: Quadra: Lote: Cadastro: 000003817
+Exercício: 2025 - Código da Dívida: 2055726 Processo:
+Mod Receita Vencimento Parc Valor Desconto Correção Multa JurosHonorários À pagar Situação
+2 TAXA LICENÇA P/ FUNCIONAMENTO 29/08/2025 3 154,87 0,00 7,50 3,25 21,11 0,00 183,48 ABERTO DA DÍVIDA
+2 TAXA LICENÇA P/ FUNCIONAMENTO 30/09/2025 4 154,87 0,00 7,50 3,25 21,11 0,00 183,48 ABERTO DA DÍVIDA
+Sub. Total: 309,74 0,00 15,00 6,50 42,22 0,00 366,96
+Exercício: 2025 - Código da Dívida: 2058875 Processo:
+Mod Receita Vencimento Parc Valor Desconto Correção Multa JurosHonorários À pagar Situação
+2 ISSQN VARIÁVEL ISS-E 15/06/2025 5 210,00 0,00 10,17 4,40 33,03 0,00 253,20 ABERTO DA DÍVIDA
+2 ISSQN VARIÁVEL ISS-E 15/07/2025 6 240,00 0,00 11,62 5,03 35,23 0,00 286,85 ABERTO DA DÍVIDA
+2 ISSQN VARIÁVEL ISS-E 15/12/2025 11 27,50 0,00 1,33 0,58 2,59 0,00 31,42 ABERTO DA DÍVIDA
+Sub. Total: 477,50 0,00 23,12 10,01 70,85 0,00 571,47
+Total: 787,24 0,00 38,12 16,51 113,07 0,00 938,43
+NP Primeira Demais Desconto NP Primeira Demais Desconto NP Primeira Demais Desconto NP Primeira Demais Desconto
+1 938,43 938,43 16,51 2 471,68 471,69 11,57 3 314,46 314,45 11,57 4 235,84 235,84 11,57
+5 188,67 188,67 11,57 6 157,23 157,23 11,57 7 134,77 134,77 11,57 8 117,92 117,92 11,57
+9 104,82 104,82 11,57 10 94,34 94,34 11,57 11 85,76 85,76 11,57 12 78,61 78,61 11,57
+Fiorilli Sociedade Civil Software Usuário: marcia - Emissão: 18/09/2026 12:59:11 - Página 1 de 1

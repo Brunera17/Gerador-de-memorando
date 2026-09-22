@@ -1,0 +1,38 @@
+Vamos Simular!
+
+EMPRESA MODELO ALFA - CNPJ: 11.111.111/0001-11 0
+Verifique as opções de negociação encontradas.
+Previdenciário
+Dívidas para simulação (6) Ver mais
+Opções de negociação Opções de negociação não disponíveis
+Encontramos uma opção de negociação disponível para adesão.
+Algumas dívidas podem estar disponíveis para simulação em mais de uma opção.
+Para simular os valores de cada opção, você deve selecionar a(s) dívida(s) nas negociações
+desejadas.
+É possível simular mais de uma opção simultaneamente.
+Adicione à carteira de negociação a(s) opção(ões) que deseja negociar. Depois que uma opção for
+adicionada à carteira, as dívidas nela incluídas não estarão mais disponíveis para simulação nas
+demais opções.
+• Opção 1
+Parcelamento Convencional
+Parcelamento Sem Garantia Pessoa Jurídica Dívida Previdenciária Até 15 Milhões de Reais
+Identificamos que todas as 6 dívidas podem ser negociadas na Selecionar
+Opção 1. todas
+81 4 26 098002- 81 4 26 097998- 81 4 26 097999- 81 4 26 098001-
+27 90 70 46
+81 4 26 097997- 81 4 26 098000-
+09 65
+
+A modalidade possui valor máximo de R$ 15.000.000,00. Você selecionou R$ 3.476,01.
+Essa modalidade não permite utilização de prejuízo fiscal e/ou base de
+Prestações 6
+cálculo negativa
+Adesão até Total sem desconto Desconto Total a pagar
+Prazo indeterminado R$ 3.476,01 R$ 0,00 R$ 3.476,01
+Forma de pagamento Quantidade Valor O valor das
+prestações será
+Básica 6x R$ 579,33 
+atualizado na data do
+pagamento, conforme
+a legislação vigente.
+À

@@ -1,0 +1,43 @@
+Relatório de Pendências Fiscais
+Dados do Contribuinte
+Razão Social
+EMPRESA MODELO GAMA 111.111.111-11
+Inscrição Estadual
+600.197.510.111
+Início das Atividades da IE
+13/10/2019
+Situação da IE
+Atual
+CNPJ
+33.333.333/0001-33
+Situação do Estabelecimento
+Inapto
+Substituição Tributária
+Sim
+Regime Atual
+NORMAL - REGIME PERIÓDICO DE APURAÇÃO
+DRT Atual
+DRT-04 - SOROCABA
+Posto Fiscal Atual
+PF-10 - SOROCABA
+CNAE
+43.99-1/03
+Resumo
+Titulo Informação
+Situação Cadastral Situação Nulo ou Inapto
+ICMS Declarado Não há Débitos
+ICMS Parcelamento Não há Débitos
+IPVA Não há Débitos
+ITCMD Não há Débitos
+AIIM Não há Débitos
+ICMS Pendência Não há Pendências
+https://www10.fazenda.sp.gov.br/CertidaoNegativaDeb/Pages/Restrita/VerificarImpedimentosPorCNPJCompleto.aspx 2/3
+Inscrição Estadual
+Inscrição Estadual ▲
+600.197.510.111
+Data e hora da pesquisa 26/08/2026 09:50:58 (hora de Brasília)
+Sistema disponível em dias úteis das 06:00 às 21:00 hrs
+Secretaria da Fazenda e Planejamento do Estado de São Paulo
+<ENDEREÇO OCULTADO>
+ATENDIMENTO: 0800-170-110 - Versão: 1.1.9701.18054
+https://www10.fazenda.sp.gov.br/CertidaoNegativaDeb/Pages/Restrita/VerificarImpedimentosPorCNPJCompleto.aspx 3/3

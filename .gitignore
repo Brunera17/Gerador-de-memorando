@@ -221,12 +221,14 @@ __marimo__/
 # Dados de clientes / sensíveis — NUNCA versionar
 # ---------------------------------------------------------------
 # Casos de teste (PDFs de origem + memorandos validados de clientes e não clientes)
-casos/
+/casos/
 # PDFs de consulta fiscal (situação fiscal, parcelamentos, CND, etc.)
-pdfs/
+# Barrado só na raiz do projeto — sem a barra inicial, "pdfs/" também
+# escondia as fixtures de teste em tests/fixtures/**/pdfs/ (já corrigido)
+/pdfs/
 *.pdf
 # Memorandos gerados e o JSON de dados extraídos
-output/
+/output/
 Memorando_*.docx
 *_dados.json
 # Modelos originais com papel timbrado do escritório (usar templates/)

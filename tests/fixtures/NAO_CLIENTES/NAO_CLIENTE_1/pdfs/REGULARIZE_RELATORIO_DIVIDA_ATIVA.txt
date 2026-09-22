@@ -1,0 +1,43 @@
+25/08/2026, 20:43 Regularize_Relatorio_Divida_Ativa_25082026-2043
+Relatório de inscrições em dívida
+ativa da União e do FGTS
+Dados obtidos em 25/08/2026 às
+20:43
+Por: EMPRESA MODELO GAMA
+111.111.111-11
+CPF/CNPJ: 33.333.333/0001-33
+Relatório Consolidado da Dívida
+Devedor: EMPRESA MODELO GAMA 111.111.111-11
+CPF/CNPJ: 33.333.333/0001-33
+Naturezas selecionadas: Tributárias / Não Tributárias / Previdenciárias / Simples Nacional / FGTS
+Situações selecionadas: Ativas em Cobrança / Negociadas / Garantidas / Suspensas / Extintas
+
+Relatório - Resumo
+Naturezas selecionadas: Tributárias / Não Tributárias / Dívida total
+Previdenciárias / Simples Nacional / FGTS
+Total de inscrições ativas: 2
+Situações selecionadas: Ativas em Cobrança /
+Valor total da dívida*: R$ 3.305,51
+Negociadas / Garantidas / Suspensas / Extintas
+Quantidade de inscrições selecionadas*: 2
+Valor das inscrições selecionadas*: R$ 3.305,51
+*Não estão sendo contabilizadas as Inscrições extintas
+OBS: Serão exibidas somente as naturezas e situações selecionadas que contém inscrições.
+https://www.regularize.pgfn.gov.br/consultaDividas/relatorio 1/2
+25/08/2026, 20:43 Regularize_Relatorio_Divida_Ativa_25082026-2043
+Simples Nacional (2) 
+Negociada (2) 
+Inscrição Valor
+Devedor Principal Situação
+Data da Inscrição Consolidado
+ATIVA NAO
+80 4 25 761498-60 EMPRESA MODELO GAMA 279... AJUIZAVEL
+R$ 1.916,78
+08/09/2025 33.333.333/0001-33 NEGOCIADA
+NO SISPAR
+ATIVA NAO
+80 4 23 807402-56 EMPRESA MODELO GAMA 279... AJUIZAVEL
+R$ 1.388,73
+18/09/2023 33.333.333/0001-33 NEGOCIADA
+NO SISPAR
+https://www.regularize.pgfn.gov.br/consultaDividas/relatorio 2/2
