@@ -1,7 +1,7 @@
 Procuradoria Geral da Fazenda Nacional Sessão: 19:51
 PPGGFFNN
 Data e Hora de login: 22/09/2026 14:02:45
-PPrrooccuurraaddoorriiaa Usuário: 22.222.222/0001-22 - EMPRESA MODELO BETA 11111111111 Produção - 2.6.5 (BUILD 1)
+PPrrooccuurraaddoorriiaa Usuário: 22.222.222/0001-22 - EMPRESA MODELO BETA 111.111.111-11 Produção - 2.6.5 (BUILD 1)
 GGeerraall ddaa
 Consulta Adesão Emissão de Documento Débito automático
 FFaazzeennddaa Capacidade de pagamento Declaração de Receita
@@ -12,7 +12,7 @@ Negociações: 0092 - TRANSACAO POR ADESAO EDITAL PGDAU 062026 Nr. Referência C
 0134 - MICROEMPREENDEDOR INDIVIDUAL PEQUENO VALOR REDUCAO ATE 50 ATE 60
 Modalidade: Data da Adesão: 07/07/2026
 MESES
-Contribuinte: 22.222.222/0001-22 - EMPRESA MODELO BETA 11111111111 Total de Parcelas: 28
+Contribuinte: 22.222.222/0001-22 - EMPRESA MODELO BETA 111.111.111-11 Total de Parcelas: 28
 Valor Saldo Devedor sem
 3.778,20 3.643,27
 consolidado: Juros:

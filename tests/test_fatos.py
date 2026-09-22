@@ -48,6 +48,9 @@ def extrair_fatos(t):
     pgdau = pf.extrair_pgdau_prestacoes(get("parcelamento_pgdau_prestacoes"))
     mei = pf.extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
     estadual = pf.extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
+    federal = pf.extrair_federal(get("federal"))
+    parc_sn = pf.extrair_parcelamento_sn(get("parcelamento_sn"))
+    analise = pf.extrair_analise_previa_sn(get("analise_previa_sn"))
     return {
         "multas_total": decl["total_multas"],
         "multas_qtd": len(decl["declaracoes"]),
@@ -58,11 +61,17 @@ def extrair_fatos(t):
         "icms_quantidade_dividas": icms["quantidade_dividas"],
         "municipal_total": municipal["total"],
         "municipal_debitos": len(municipal["debitos"]),
+        "municipal_total_parcelamento": municipal["total_parcelamento"],
         "pgdau_valor_atual": pgdau["valor_parcela_atual"],
         "pgdau_restantes": pgdau["parcelas_restantes"],
         "mei_total": mei["total"],
         "mei_quantidade": mei["quantidade"],
         "estadual_certidoes": len(estadual["certidaos"]),
+        "federal_certidao_tipo": federal["certidao_tipo"],
+        "federal_debitos": len(federal["debitos"]),
+        "parc_sn_total": parc_sn["valor_total"],
+        "parc_sn_num_parcelas": parc_sn["num_parcelas"],
+        "analise_previa_indeferida": analise["indeferida"],
     }
 
 
@@ -96,6 +105,16 @@ CASOS_ESPERADOS = {
         "mei_quantidade": 19,
     },
     "AMOSTRAS/AMOSTRA_1": {
+        "federal_certidao_tipo": "Certidão Negativa",
+        "federal_debitos": 7,
+        "parc_sn_total": 37986.19,
+        "parc_sn_num_parcelas": 60,
+        "municipal_total": 331.16,
+        "municipal_total_parcelamento": 406.92,
+        "estadual_certidoes": 1,
+        "analise_previa_indeferida": True,
+    },
+    "AMOSTRAS/AMOSTRA_2": {
         "estadual_certidoes": 2,
     },
 }

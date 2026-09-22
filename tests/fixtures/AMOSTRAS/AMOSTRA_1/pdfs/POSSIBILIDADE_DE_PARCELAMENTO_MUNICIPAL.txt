@@ -1,0 +1,20 @@
+PREFEITURA MUNICIPAL DE ITAI
+CNPJ: 11111111000111
+Municipio de Itai - Telefone: 0800 090 6650
+<ENDEREÇO OCULTADO>
+Listagem de Débito do mobiliário por dívida
+Filtros aplicados ao relatório: débitos não prescritos, Módulo igual a 2, Cadastro do mobiliário igual a 000013703Código da Parcela seja (1845444, 6915345, 6915346, 6915347, 6915348), Data de
+referência igual a 17/09/2026
+Cadastro Inscr. Contribuinte CPF/CNPJ RG/Inscr.Estadual
+000013703 M00u6n4ic1ip2al EMPRESA MODELO ALFA 11111111000111 366.048.209.11
+Endereço Bairro CEP2
+R:FRANCISCO DE ALMEIDA LARA, 0491 JARDIM NOVO HORIZONTE 18.732-074
+<linha com texto sobreposto no PDF original — removida por segurança>
+26/08/2022 0 TRANSPORTE RODOVIARIO DE CARGA, EXCETO PROD. PERIGOSOS E
+MUDANÇAS,INTERMUNICIPAL, INTERESTADUAL E INTERNACIONAL
+Exercício Dívida Receita: Valor Desconto Correção Multa Juros Honorários A Pagar
+2024 1849044 TAXA LICENÇA 68,94 0,00 6,82 1,52 17,43 0,00 94,71
+2026 2561590 ISS/TAXAS 303,10 0,00 0,00 4,56 4,55 0,00 312,21
+Quantidade: 2 Total do Cadastro: 372,04 0,00 6,82 6,08 21,98 0,00 406,92
+Quantidade: 2 Total Geral: 372,04 0,00 6,82 6,08 21,98 0,00 406,92
+Quantidade de contribuintes: 1 Quantidade de cadastros: 2

@@ -1,0 +1,49 @@
+MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
+SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 11.111.111/0001-11
+PROCURADORIA-GERAL DA FAZENDA NACIONAL 11/09/2026 08:58:51
+INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
+Página: 1 / 2
+CNPJ: 11.111.111 - EMPRESA MODELO ALFA
+Dados Cadastrais da Matriz ______________________________________________________________________________________
+CNPJ: 11.111.111/0001-11
+UA de Domicílio: ARF AVARE-SP Código da UA: 08.103.06
+Endereço: <ENDEREÇO OCULTADO>
+Bairro: JARDIM NOVO HORIZONTE CEP: 18732-074 Município: ITAI UF: SP
+Responsável: 111.111.111-11 - EMPRESA MODELO ALFA
+Situação: ATIVA
+Natureza Jurídica: 206-2 - SOCIEDADE EMPRESARIA LIMITADA Data de Abertura: 09/08/2022
+CNAE: 4930-2/02 - Transporte rodoviário de carga, exceto produtos perigosos e mudanças, intermunicipal, interestadual e internacional
+Porte da Empresa: MICRO EMPRESA
+Opção pelo Simples Nacional
+Inclusão Exclusão
+09/08/2022 31/12/2026
+Opção pelo SIMEI
+Inclusão Exclusão
+09/08/2022 30/09/2024
+Sócios e Administradores ________________________________________________________________________________________
+CPF/CNPJ Nome Qualificação Situação Cadastral Cap. Social Cap. Votante
+111.111.111-11 EMPRESA MODELO ALFA SÓCIO-ADMINISTRADOR REGULAR 100,00%
+Certidão Emitida ________________________________________________________________________________________________
+CNPJ: 11.111.111/0001-11
+Certidão Negativa: 7C3C.3060.ACD5.18B8 Emissão: 25/01/2026 Data de Validade: 24/07/2026
+_____________________________________ Diagnóstico Fiscal na Receita Federal _____________________________________
+Pendência - Débito (SIEF) _______________________________________________________________________________________
+CNPJ: 11.111.111/0001-11
+<linha com texto sobreposto no PDF original — removida por segurança>
+SIMPLES NAC. 12/2025 20/01/2026 5.182,43 5.182,43 1.036,48 456,05 6.674,96 DEVEDOR
+SIMPLES NAC. 01/2026 20/02/2026 11.230,44 11.230,44 2.246,08 875,97 14.352,49 DEVEDOR
+SIMPLES NAC. 03/2026 20/04/2026 318,91 318,91 63,78 17,54 400,23 DEVEDOR
+SIMPLES NAC. 04/2026 20/05/2026 2.340,59 2.340,59 468,11 103,68 2.912,38 DEVEDOR
+SIMPLES NAC. 05/2026 22/06/2026 3.666,13 3.666,13 733,22 121,34 4.520,69 DEVEDOR
+MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
+SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 11.111.111/0001-11
+PROCURADORIA-GERAL DA FAZENDA NACIONAL 11/09/2026 08:58:51
+INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
+Página: 2 / 2
+CNPJ: 11.111.111 - EMPRESA MODELO ALFA
+SIMPLES NAC. 06/2026 20/07/2026 4.595,98 4.595,98 803,83 96,05 5.495,86 DEVEDOR
+SIMPLES NAC. 07/2026 20/08/2026 2.904,54 2.904,54 210,86 29,04 3.144,44 DEVEDOR
+__________________________ Diagnóstico Fiscal na Procuradoria-Geral da Fazenda Nacional _________________________
+Não foram detectadas pendências/exigibilidades suspensas para esse contribuinte nos controles da Procuradoria-Geral da Fazenda Nacional.
+_________________________________________________________________________________________________________________
+Final do Relatório

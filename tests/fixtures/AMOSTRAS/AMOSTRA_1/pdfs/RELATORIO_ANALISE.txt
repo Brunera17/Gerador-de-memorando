@@ -1,0 +1,39 @@
+RELATÓRIO DE ANÁLISE PRÉVIA
+(Lei Complementar nº 123, de 14 de dezembro de 2006)
+DADOS DA MATRIZ
+Nome empresarial EMPRESA MODELO ALFA
+CNPJ 11.111.111/0001-11
+Resultado Sua opção pelo Simples Nacional será indeferida
+Data de início de vigência 01/01/2027
+PENDÊNCIAS IDENTIFICADAS
+DÉBITOS EM COBRANÇA
+Grupo Estabelecimento Nº Detalhes do débito
+RFB 11.111.111/0001-11 1 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 12/2025
+Saldo devedor: R$ 5.182,43
+RFB 11.111.111/0001-11 2 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 01/2026
+Saldo devedor: R$ 11.230,44
+RFB 11.111.111/0001-11 3 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 03/2026
+Saldo devedor: R$ 318,91
+RFB 11.111.111/0001-11 4 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 04/2026
+Saldo devedor: R$ 2.340,59
+RFB 11.111.111/0001-11 5 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 05/2026
+Saldo devedor: R$ 3.666,13
+RFB 11.111.111/0001-11 6 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 06/2026
+Saldo devedor: R$ 4.595,98
+RFB 11.111.111/0001-11 7 Código da receita: 3333
+Nome do tributo: SIMPLES NAC.
+Período de apuração: 07/2026
+Saldo devedor: R$ 2.904,54
+Página 1
