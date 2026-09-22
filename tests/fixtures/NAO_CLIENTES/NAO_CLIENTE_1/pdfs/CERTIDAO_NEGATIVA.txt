@@ -1,7 +1,7 @@
 Relatório de Pendências Fiscais
 Dados do Contribuinte
 Razão Social
-EMPRESA MODELO GAMA 111.111.111-11
+EMPRESA MODELO ALFA 11111111111
 Inscrição Estadual
 600.197.510.111
 Início das Atividades da IE
@@ -9,7 +9,7 @@ Início das Atividades da IE
 Situação da IE
 Atual
 CNPJ
-33.333.333/0001-33
+11.111.111/0001-11
 Situação do Estabelecimento
 Inapto
 Substituição Tributária

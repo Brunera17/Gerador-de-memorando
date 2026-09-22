@@ -1,6 +1,6 @@
 
-Consulta da empresa: EMPRESA MODELO GAMA 
-CNPJ: 33.333.333/0001-33
+Consulta da empresa: EMPRESA MODELO ALFA 
+CNPJ: 11.111.111/0001-11
 Consulta realizada no dia 02/09/2026
 Âmbito Federal
 Declarações em atraso:

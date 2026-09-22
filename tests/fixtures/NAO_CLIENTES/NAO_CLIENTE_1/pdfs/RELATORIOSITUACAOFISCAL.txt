@@ -1,15 +1,15 @@
 MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
-SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 33.333.333/0001-33
+SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 11.111.111/0001-11
 PROCURADORIA-GERAL DA FAZENDA NACIONAL 18/09/2026 15:25:45
 INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
 Página: 1 / 2
-CNPJ: 33.333.333 - EMPRESA MODELO GAMA 111.111.111-11
+CNPJ: 11.111.111 - EMPRESA MODELO ALFA 11111111111
 Dados Cadastrais da Matriz ______________________________________________________________________________________
-CNPJ: 33.333.333/0001-33
+CNPJ: 11.111.111/0001-11
 UA de Domicílio: ARF ITU-SP Código da UA: 08.110.03
 Endereço: <ENDEREÇO OCULTADO>
 Bairro: JARDIM DAS NACOES CEP: 13322-200 Município: SALTO UF: SP
-Responsável: 111.111.111-11 - EMPRESA MODELO GAMA
+Responsável: 111.111.111-11 - EMPRESA MODELO ALFA
 Situação: ATIVA
 Natureza Jurídica: 213-5 - EMPRESARIO (INDIVIDUAL) Data de Abertura: 13/10/2019
 CNAE: 4399-1/03 - Obras de alvenaria
@@ -23,30 +23,30 @@ Inclusão Exclusão
 Sócios e Administradores ________________________________________________________________________________________
 QUADRO SOCIETÁRIO NÃO OBRIGATÓRIO POR SUA NATUREZA JURÍDICA
 Certidão Emitida ________________________________________________________________________________________________
-CNPJ: 33.333.333/0001-33
+CNPJ: 11.111.111/0001-11
 Certidão Negativa: 5A56.13B7.DBB9.5A58 Emissão: 14/10/2019 Data de Validade: 10/07/2020
 _____________________________________ Diagnóstico Fiscal na Receita Federal _____________________________________
 Parcelamento com Exigibilidade Suspensa (PARCSN/PARCMEI) ________________________________________________________
-CNPJ: 33.333.333/0001-33
+CNPJ: 11.111.111/0001-11
 MEI - EM PARCELAMENTO
 __________________________ Diagnóstico Fiscal na Procuradoria-Geral da Fazenda Nacional _________________________
 MINISTÉRIO DA FAZENDA Por meio do Portal de Serviços da Receita Federal
-SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 33.333.333/0001-33
+SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 11.111.111/0001-11
 PROCURADORIA-GERAL DA FAZENDA NACIONAL 18/09/2026 15:25:45
 INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
 Página: 2 / 2
-CNPJ: 33.333.333 - EMPRESA MODELO GAMA 111.111.111-11
+CNPJ: 11.111.111 - EMPRESA MODELO ALFA 11111111111
 Inscrição com Exigibilidade Suspensa (SIDA) _____________________________________________________________________
-CNPJ: 33.333.333/0001-33
+CNPJ: 11.111.111/0001-11
 Inscrição Receita Inscrito em Ajuizado em Processo Tipo de Devedor
-80.4.23.807402-56 1537-- SIMP NAC - 18/09/2023 12333.333.333/0001-33 DEVEDOR PRINCIPAL
+80.4.23.807402-56 1537-- SIMP NAC - 18/09/2023 12311.111.111/0001-11 DEVEDOR PRINCIPAL
 MEI
 Situação: ATIVA NAO AJUIZAVEL NEGOCIADA NO SISPAR
-80.4.25.761498-60 1537-- SIMP NAC - 08/09/2025 11733.333.333/0001-33 DEVEDOR PRINCIPAL
+80.4.25.761498-60 1537-- SIMP NAC - 08/09/2025 11711.111.111/0001-11 DEVEDOR PRINCIPAL
 MEI
 Situação: ATIVA NAO AJUIZAVEL NEGOCIADA NO SISPAR
 Parcelamento com Exigibilidade Suspensa (SISPAR) ________________________________________________________________
-CNPJ: 33.333.333/0001-33
+CNPJ: 11.111.111/0001-11
 Conta
 016201587 TRANSACAO POR ADESAO EDITAL PGDAU 062026
 Modalidade: MICROEMPREENDEDOR INDIVIDUAL PEQUENO VALOR REDUCAO ATE 50 ATE 60 MESES

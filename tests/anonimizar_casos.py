@@ -66,6 +66,16 @@ def slug(s):
     return re.sub(r"_+", "_", s).strip("_").upper()
 
 
+def nome_arquivo_seguro(stem):
+    """Nome de arquivo de fixture a partir do nome do PDF de origem, mas sem
+    qualquer sequência de 3+ dígitos — o nome do PDF muitas vezes carrega o
+    CNPJ do cliente ou uma data/protocolo (ex.: "RelatorioSituacaoFiscal-
+    12345678000199-20260921.pdf"). Só o nome do arquivo, nunca os números,
+    vira o nome do arquivo de teste."""
+    sem_numeros = re.sub(r"\d{3,}", "", stem)
+    return slug(sem_numeros) or "PDF"
+
+
 def sem_acento(s):
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
 
@@ -223,46 +233,69 @@ def main():
 
     idx = 0
     total_residuos = 0
+    contadores_grupo = {}
     for grupo_dir in sorted(p for p in Path(a.casos).iterdir() if p.is_dir()):
+        grupo_slug = slug(grupo_dir.name)
+        # nome da pasta de cada caso = singular do nome do grupo + número (CLIENTES -> CLIENTE_1,
+        # NAO_CLIENTES -> NAO_CLIENTE_1, AMOSTRAS -> AMOSTRA_1, ...)
+        prefixo_caso = grupo_slug[:-1] if grupo_slug.endswith("S") else grupo_slug
         for caso_dir in sorted(p for p in grupo_dir.iterdir() if p.is_dir()):
             pdfs = sorted(f for f in caso_dir.glob("*.pdf") if not f.name.lower().startswith("memorando"))
             docx = [f for f in caso_dir.glob("*.docx")
                     if f.name.lower().startswith("memorando") and not f.name.startswith("~$")]
-            if not pdfs or len(docx) != 1:
+            # memorando validado é opcional — sem ele, o caso vira só uma amostra de
+            # formato (usada para testar a extração), sem um resultado esperado para comparar
+            if not pdfs or len(docx) > 1:
                 print(f"[PULADO] {grupo_dir.name}/{caso_dir.name}: {len(pdfs)} pdf(s), {len(docx)} memorando(s)")
                 continue
 
             textos_pdf = {f: pf.extrair_texto_pdf(str(f)) for f in pdfs}
-            texto_docx = paragrafos_docx(docx[0])
-            todos_textos = list(textos_pdf.values()) + [texto_docx]
+            texto_docx = paragrafos_docx(docx[0]) if docx else None
+            todos_textos = list(textos_pdf.values()) + ([texto_docx] if texto_docx else [])
 
-            nome_fake = NOMES_FICTICIOS[idx % len(NOMES_FICTICIOS)]
-            cnpj_fake = CNPJ_FICTICIOS[idx % len(CNPJ_FICTICIOS)]
+            # Contador por grupo (não global): assim, adicionar um grupo novo (ex.: AMOSTRAS)
+            # não muda a identidade fictícia nem o número dos casos já existentes em CLIENTES/
+            # NÃO CLIENTES — o diff de um caso novo fica restrito a ele mesmo.
+            contadores_grupo[grupo_slug] = contadores_grupo.get(grupo_slug, 0) + 1
+            pos = contadores_grupo[grupo_slug] - 1
+            nome_fake = NOMES_FICTICIOS[pos % len(NOMES_FICTICIOS)]
+            cnpj_fake = CNPJ_FICTICIOS[pos % len(CNPJ_FICTICIOS)]
             idx += 1
             subs, variantes_nome, cnpjs = montar_substituicoes(todos_textos, nome_fake, cnpj_fake)
 
-            destino = saida_raiz / slug(grupo_dir.name) / slug(caso_dir.name)
+            # Nome de pasta NUNCA pode vir do nome real do caso (foi assim que o nome de
+            # um cliente vazou para o GitHub antes) — usa um contador genérico por grupo.
+            nome_pasta = f"{prefixo_caso}_{contadores_grupo[grupo_slug]}"
+            destino = saida_raiz / grupo_slug / nome_pasta
             (destino / "pdfs").mkdir(parents=True, exist_ok=True)
 
             residuos_caso = 0
+            nomes_usados = set()
             for f, t in textos_pdf.items():
                 t2 = aplicar(t, subs)
                 r = checar_residuos(t2, variantes_nome, cnpjs)
                 if r:
                     residuos_caso += len(r)
                     print(f"   ⚠ {f.name}: {r}")
-                (destino / "pdfs" / (slug(f.stem) + ".txt")).write_text(t2, encoding="utf-8")
+                base = nome_arquivo_seguro(f.stem)
+                nome_final, n = base, 2
+                while nome_final in nomes_usados:
+                    nome_final = f"{base}_{n}"; n += 1
+                nomes_usados.add(nome_final)
+                (destino / "pdfs" / (nome_final + ".txt")).write_text(t2, encoding="utf-8")
 
-            t2 = aplicar(texto_docx, subs)
-            r = checar_residuos(t2, variantes_nome, cnpjs)
-            if r:
-                residuos_caso += len(r)
-                print(f"   ⚠ {docx[0].name}: {r}")
-            (destino / "memorando_validado.txt").write_text(t2, encoding="utf-8")
+            if texto_docx is not None:
+                t2 = aplicar(texto_docx, subs)
+                r = checar_residuos(t2, variantes_nome, cnpjs)
+                if r:
+                    residuos_caso += len(r)
+                    print(f"   ⚠ {docx[0].name}: {r}")
+                (destino / "memorando_validado.txt").write_text(t2, encoding="utf-8")
 
             total_residuos += residuos_caso
             status = "OK" if residuos_caso == 0 else f"FALHOU ({residuos_caso} resíduo(s))"
-            print(f"[{status}] {grupo_dir.name}/{caso_dir.name} → {destino.relative_to(RAIZ)}  "
+            amostra = "" if texto_docx is not None else " [amostra, sem memorando validado]"
+            print(f"[{status}] {grupo_dir.name}/{caso_dir.name} → {destino.relative_to(RAIZ)}{amostra}  "
                   f"({len(pdfs)} pdf(s), {len(variantes_nome)} variante(s) de nome, {len(cnpjs)} cnpj(s))")
 
     print(f"\nTotal de resíduos encontrados: {total_residuos}")

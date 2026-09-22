@@ -4,7 +4,7 @@ Prefeitura da Estância Turística de Salto Home
 Manuais e Instruções IPTU
 Para utilizar outra inscrição clique aqui
 Inscrição:0000158840
-Nome: GAMA MODELO DE EMPRESA 111.111.111-11 Ficha do Imóvel
+Nome: ALFA MODELO DE EMPRESA 11111111111 Ficha do Imóvel
 Certidão Endereço:RUA JAPÃO ,202 BLOCO 16; APTO 5,JARDIM DAS NAÇÕES,SALTO-SP Correção Monetária
 Tipo de Inscrição: 2026
 Mobiliário Lançamentos Edital IPTU 2026
@@ -25,9 +25,9 @@ Cód. Verificação de Autenticidade
 Ok
 3 30/06/2026 81,02 0 2,43 2,43 8,59 0 94,
 Voltar Emitir
-https://cidadaosalto.giap.com.br/ords/salto01/f?p=331:2:33333333000133::::: 1/2
+https://cidadaosalto.giap.com.br/ords/salto01/f?p=331:2:11111111000111::::: 1/2
 01/09/2026, 16:18 Prefeitura Municipal de Salto
 processos
 processos
 Prefeitura da Estância Turística de Salto 2010. Todos os direitos reservados.
-https://cidadaosalto.giap.com.br/ords/salto01/f?p=331:2:33333333000133::::: 2/2
+https://cidadaosalto.giap.com.br/ords/salto01/f?p=331:2:11111111000111::::: 2/2

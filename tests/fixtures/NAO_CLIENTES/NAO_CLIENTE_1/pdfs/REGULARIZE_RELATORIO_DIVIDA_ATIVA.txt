@@ -3,12 +3,12 @@ Relatório de inscrições em dívida
 ativa da União e do FGTS
 Dados obtidos em 25/08/2026 às
 20:43
-Por: EMPRESA MODELO GAMA
-111.111.111-11
-CPF/CNPJ: 33.333.333/0001-33
+Por: EMPRESA MODELO ALFA
+11111111111
+CPF/CNPJ: 11.111.111/0001-11
 Relatório Consolidado da Dívida
-Devedor: EMPRESA MODELO GAMA 111.111.111-11
-CPF/CNPJ: 33.333.333/0001-33
+Devedor: EMPRESA MODELO ALFA 11111111111
+CPF/CNPJ: 11.111.111/0001-11
 Naturezas selecionadas: Tributárias / Não Tributárias / Previdenciárias / Simples Nacional / FGTS
 Situações selecionadas: Ativas em Cobrança / Negociadas / Garantidas / Suspensas / Extintas
 
@@ -31,13 +31,13 @@ Inscrição Valor
 Devedor Principal Situação
 Data da Inscrição Consolidado
 ATIVA NAO
-80 4 25 761498-60 EMPRESA MODELO GAMA 279... AJUIZAVEL
+80 4 25 761498-60 EMPRESA MODELO ALFA 279... AJUIZAVEL
 R$ 1.916,78
-08/09/2025 33.333.333/0001-33 NEGOCIADA
+08/09/2025 11.111.111/0001-11 NEGOCIADA
 NO SISPAR
 ATIVA NAO
-80 4 23 807402-56 EMPRESA MODELO GAMA 279... AJUIZAVEL
+80 4 23 807402-56 EMPRESA MODELO ALFA 279... AJUIZAVEL
 R$ 1.388,73
-18/09/2023 33.333.333/0001-33 NEGOCIADA
+18/09/2023 11.111.111/0001-11 NEGOCIADA
 NO SISPAR
 https://www.regularize.pgfn.gov.br/consultaDividas/relatorio 2/2
