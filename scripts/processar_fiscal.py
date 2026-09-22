@@ -54,6 +54,8 @@ def classificar_pdf(texto):
             or ("situação da inscrição" in t and "receita da dívida" in t)
             or ("situacao da inscricao" in t and "receita da divida" in t)):
         return "parcelamento_dau"
+    if "relatório de análise prévia" in t or "relatorio de analise previa" in t:
+        return "analise_previa_sn"
     if "emissão de documento de arrecadação" in t and "negociações:" in t:
         return "parcelamento_pgdau_prestacoes"
     if "parcelas disponíveis para impressão" in t and "parcela" in t and "valor" in t:
@@ -139,7 +141,7 @@ def extrair_dados_empresa(textos):
 
 
 def extrair_federal(texto):
-    r = {"status":"NEGATIVA","certidao_numero":"","certidao_validade":"",
+    r = {"status":"NEGATIVA","certidao_numero":"","certidao_validade":"","certidao_tipo":"",
          "tem_debitos_exigiveis":False,"debitos":[],"exigibilidade_suspensa":[],
          "parcelamento_siefpar":None,"parcelamento_ativo":None,"inscricoes_sida":[]}
     if not texto: return r
@@ -147,6 +149,13 @@ def extrair_federal(texto):
     if m:
         r["certidao_numero"] = m.group(1).strip()
         r["status"] = "POSITIVA_COM_EFEITOS_NEGATIVA"
+        r["certidao_tipo"] = "Certidão Positiva com Efeitos de Negativa"
+    else:
+        # Baseado em um único exemplo real — layout pode variar em outros casos
+        m = re.search(r'Certid[aã]o Negativa[:\s]+([A-Z0-9.]+)', texto, re.IGNORECASE)
+        if m:
+            r["certidao_numero"] = m.group(1).strip()
+            r["certidao_tipo"] = "Certidão Negativa"
     m = re.search(r'Data de Validade[:\s]+(\d{2}/\d{2}/\d{4})', texto, re.IGNORECASE)
     if m: r["certidao_validade"] = m.group(1)
 
@@ -657,6 +666,28 @@ def extrair_mei_emissao_parcela(texto):
     return r
 
 
+def extrair_analise_previa_sn(texto):
+    """Extrai o resultado do "Relatório de Análise Prévia" do Simples Nacional
+    (Lei Complementar nº 123/2006) — avisa se a opção pelo Simples será
+    indeferida por causa de débitos em aberto, e a partir de quando.
+    Baseado em um único exemplo real — layout pode variar em outros casos.
+    """
+    r = {"encontrado": False, "indeferida": False, "resultado_texto": "", "data_vigencia": ""}
+    if not texto:
+        return r
+    m = re.search(r'Resultado\s+(.+?)(?=\n|$)', texto, re.IGNORECASE)
+    if not m:
+        return r
+    r["encontrado"] = True
+    r["resultado_texto"] = m.group(1).strip()
+    if "indeferid" in r["resultado_texto"].lower():
+        r["indeferida"] = True
+    m = re.search(r'Data de in[íi]cio de vig[êe]ncia\s+(\d{2}/\d{2}/\d{4})', texto, re.IGNORECASE)
+    if m:
+        r["data_vigencia"] = m.group(1)
+    return r
+
+
 def extrair_regularize_valores(texto):
     """Extrai valores individuais das inscrições do Regularize (Vamos Negociar!)."""
     r = {"encontrado": False, "inscricoes": [], "total": 0.0}
@@ -965,7 +996,8 @@ def extrair_icms_parcelamento(texto):
 
 def extrair_municipal(texto):
     r = {"status":"NEGATIVA","tem_debitos":False,"debitos":[],"total":0.0,
-         "certidao_numero":"","certidao_tipo":"","parcelamento_opcoes":[]}
+         "certidao_numero":"","certidao_tipo":"","parcelamento_opcoes":[],
+         "debitos_parcelamento":[],"total_parcelamento":0.0}
     if not texto: return r
 
     # ── Formato 1: ISS Web (EX/AT/AJ) ───────────────────────────────
@@ -1065,7 +1097,30 @@ def extrair_municipal(texto):
     if m_tot and r["total"] == 0.0:
         r["total"] = float(m_tot.group(1).replace(".","").replace(",","."))
 
-    if r["debitos"] or r["total"] > 0:
+    # ── Formato 4: Listagem de Débito do Mobiliário por Dívida (Fiorilli) ───
+    # Usada quando a prefeitura já separou os débitos que entram no parcelamento
+    # (por isso o valor daqui tem prioridade sobre o da certidão: é o que
+    # efetivamente vai ser parcelado, não só o retrato da dívida no momento).
+    # Baseado em um único exemplo real — layout pode variar.
+    if "listagem de débito" in texto.lower() or "listagem de debito" in texto.lower():
+        padrao_list = re.compile(
+            r'(\d{4})\s+(\d+)\s+([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÀÇ][A-ZÁÉÍÓÚÂÊÎÔÛÃÕÀÇ\s/\.\-]+?)\s+'
+            r'([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)')
+        for m in padrao_list.finditer(texto):
+            r["debitos_parcelamento"].append({
+                "status":  "A Parcelar",
+                "numero":  m.group(2),
+                "ano":     m.group(1),
+                "parcela": "",
+                "receita": m.group(3).strip(),
+                "valor":   float(m.group(4).replace(".","").replace(",",".")),
+                "a_pagar": float(m.group(10).replace(".","").replace(",",".")),
+            })
+        m_tot_list = re.search(r'Total Geral:\s*[\d.,]+(?:\s+[\d.,]+){5}\s+([\d.,]+)', texto, re.IGNORECASE)
+        if m_tot_list:
+            r["total_parcelamento"] = float(m_tot_list.group(1).replace(".","").replace(",","."))
+
+    if r["debitos"] or r["total"] > 0 or r["total_parcelamento"] > 0:
         r["tem_debitos"] = True
         r["status"]      = "COM_DEBITOS"
     return r
@@ -1121,6 +1176,8 @@ def blocos_para_xml(blocos):
             xml.append(wp(before=120, after=40) + wr(b["text"], bold=True) + "</w:p>")
         elif t == "normal":
             xml.append(wp(before=0, after=60) + wr(b["text"]) + "</w:p>")
+        elif t == "alerta":
+            xml.append(wp(before=80, after=100) + wr(b["text"], bold=True, color="C00000") + "</w:p>")
         elif t == "normal_bold":
             xml.append(wp(before=0, after=60) + (wr(b["text"]) if b.get("text") else "") + (wr(b["bold"], bold=True) if b.get("bold") else "") + "</w:p>")
         elif t == "date":
@@ -1184,11 +1241,20 @@ def blocos_para_xml(blocos):
 # ══════════════════════════════════════════════════════════
 
 def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas,
-                    pgdau_prest=None, mei_emissao=None):
+                    pgdau_prest=None, mei_emissao=None, analise_previa=None):
     blocos = []
+    # Alerta de indeferimento do Simples Nacional (Relatório de Análise Prévia) —
+    # vem primeiro por ser a informação mais urgente do memorando quando presente.
+    if analise_previa and analise_previa.get("indeferida"):
+        data = f" a partir de {analise_previa['data_vigencia']}" if analise_previa.get("data_vigencia") else ""
+        blocos.append({"type":"alerta",
+            "text": f"⚠ ATENÇÃO: a opção pelo Simples Nacional será INDEFERIDA{data} devido aos "
+                    f"débitos abaixo, caso não sejam regularizados."})
+        blocos.append({"type":"separator"})
     if federal.get("certidao_numero"):
         val = (f" (válida até {federal['certidao_validade']})" if federal.get("certidao_validade") else "")
-        blocos.append({"type":"normal_bold","text":"Certidão Positiva com Efeitos de Negativa nº ","bold": federal["certidao_numero"]+val+"."})
+        rotulo = federal.get("certidao_tipo") or "Certidão Positiva com Efeitos de Negativa"
+        blocos.append({"type":"normal_bold","text":f"{rotulo} nº ","bold": federal["certidao_numero"]+val+"."})
 
     # Declarações omissas
     if decl_omissas and decl_omissas.get("encontrado"):
@@ -1606,25 +1672,37 @@ def montar_municipal(municipal, hoje):
                 "text": "Certidão Positiva Municipal nº ",
                 "bold": municipal["certidao_numero"]})
 
+        # Quando existe um levantamento específico dos débitos que entram no
+        # parcelamento ("Listagem de Débito"/Formato 4), ele tem prioridade
+        # sobre a certidão — é o valor que efetivamente vai ser parcelado,
+        # não só o retrato da dívida no momento da emissão da certidão.
+        usar_parcelamento = municipal.get("total_parcelamento", 0) > 0
+        debitos_fonte = municipal["debitos_parcelamento"] if usar_parcelamento else municipal.get("debitos", [])
+        total_fonte = municipal["total_parcelamento"] if usar_parcelamento else municipal.get("total", 0)
+
         # Agrupar débitos por receita
         agrupados = {}
-        for d in municipal.get("debitos",[]):
+        for d in debitos_fonte:
             chave = f"{d['receita']} {d['ano']} ({d['status']})"
             agrupados.setdefault(chave, {"parcelas":[], "a_pagar":0.0})
-            agrupados[chave]["parcelas"].append(d["parcela"])
+            if d.get("parcela"):
+                agrupados[chave]["parcelas"].append(d["parcela"])
             agrupados[chave]["a_pagar"] += d.get("a_pagar", 0.0)
 
         for chave, dados in agrupados.items():
             parcelas = dados["parcelas"]
-            desc = f"parcela {parcelas[0]}" if len(parcelas)==1 else f"parcelas {', '.join(parcelas)}"
-            if dados["a_pagar"] > 0:
-                blocos.append({"type":"bullet","normal":f"{chave} — {desc} — A pagar: ",
-                               "bold":fmt(dados["a_pagar"])})
+            if not parcelas:
+                desc = ""
             else:
-                blocos.append({"type":"bullet","normal":"","bold":f"{chave} — {desc}"})
+                desc = f"parcela {parcelas[0]}" if len(parcelas)==1 else f"parcelas {', '.join(parcelas)}"
+            prefixo = f"{chave} — {desc} — A pagar: " if desc else f"{chave} — A pagar: "
+            if dados["a_pagar"] > 0:
+                blocos.append({"type":"bullet","normal":prefixo, "bold":fmt(dados["a_pagar"])})
+            else:
+                blocos.append({"type":"bullet","normal":"","bold":f"{chave} — {desc}" if desc else chave})
 
-        if municipal.get("total",0) > 0:
-            blocos.append({"type":"normal_bold","text":"Total a pagar: ","bold":fmt(municipal["total"])})
+        if total_fonte > 0:
+            blocos.append({"type":"normal_bold","text":"Total a pagar: ","bold":fmt(total_fonte)})
         blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
 
         # Opções de parcelamento (Simulação de Débitos — Fiorilli): mostra a opção
@@ -1705,7 +1783,7 @@ def main():
         sys.exit(1)
 
     pasta_pdfs, template, output = sys.argv[1], sys.argv[2], sys.argv[3]
-    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao"}
+    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","analise_previa_sn"}
     textos = {}
 
     tem_sub = any(os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"])
@@ -1745,6 +1823,7 @@ def main():
     parc_sispar     = extrair_parcelamento_sispar(get("parcelamento_sispar"))
     reg_valores     = extrair_regularize_valores(get("regularize_valores"))
     pgdau_prest = extrair_pgdau_prestacoes(get("parcelamento_pgdau_prestacoes"))
+    analise_previa = extrair_analise_previa_sn(get("analise_previa_sn"))
     mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
@@ -1781,7 +1860,7 @@ def main():
         "NOME_EMPRESA":             nome or "EMPRESA NÃO IDENTIFICADA",
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
-        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao),
+        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa),
         "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores),
@@ -1793,7 +1872,7 @@ def main():
 
     json_path = output.replace(".docx","_dados.json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"municipal":municipal}, f, ensure_ascii=False, indent=2)
+        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"municipal":municipal}, f, ensure_ascii=False, indent=2)
     print(f"JSON exportado: {json_path}")
 
 if __name__ == "__main__":
