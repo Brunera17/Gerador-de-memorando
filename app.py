@@ -84,6 +84,16 @@ def formatar_moeda(v):
     return pf.fmt(v) if isinstance(v, (int, float)) else str(v)
 
 
+# ── Manual de uso (lido direto do MANUAL_DE_USO.md — sem duplicar texto) ──
+@st.dialog("Manual de uso", width="large")
+def mostrar_manual():
+    caminho_manual = RAIZ / "MANUAL_DE_USO.md"
+    if caminho_manual.is_file():
+        st.markdown(caminho_manual.read_text(encoding="utf-8"))
+    else:
+        st.warning("MANUAL_DE_USO.md não encontrado no projeto.")
+
+
 # ── Barra lateral ─────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Configuração")
@@ -106,6 +116,28 @@ with st.sidebar:
 
     st.divider()
     st.caption("scripts/processar_fiscal.py — mesma lógica usada na linha de comando")
+
+    st.markdown(
+        """
+        <style>
+        div.st-key-btn_manual button {
+            border-radius: 50%;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            font-style: italic;
+            font-weight: 700;
+            font-size: 16px;
+            line-height: 1;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(key="btn_manual"):
+        if st.button("i", help="Manual de uso"):
+            mostrar_manual()
 
 
 st.title("📄 Gerador de Memorando")
