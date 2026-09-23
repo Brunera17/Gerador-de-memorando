@@ -1136,7 +1136,10 @@ def extrair_municipal(texto):
             r'([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)')
         for m in padrao_list.finditer(texto):
             r["debitos_parcelamento"].append({
-                "status":  "A Parcelar",
+                # Esse formato não traz uma coluna de situação — inventar um rótulo
+                # (ex.: "A Parcelar") ficava sem sentido quando a própria receita já
+                # é "PARCELAMENTO" (um débito que já é parcela de algo em andamento).
+                "status":  "",
                 "numero":  m.group(2),
                 "ano":     m.group(1),
                 "parcela": "",
@@ -1164,6 +1167,10 @@ def escape_xml(t):
 
 def fmt(v):
     return f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
+
+def plural(qtd, singular, plural_):
+    """Forma singular/plural correta conforme a quantidade — nunca "(ões)"/"(is)"."""
+    return singular if qtd == 1 else plural_
 
 def make_rpr(bold=False, italic=False, color=None):
     p = []
@@ -1361,7 +1368,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
         # Detectar categoria (primeira inscrição do SIDA ou genérico)
         cat_sida = sida[0]["receita"] if sida else "PGFN"
         blocos.append({"type":"label",
-            "text": f"Dívida Ativa — {cat_sida} ({len(rv_insc)} inscrição(ões))"})
+            "text": f"Dívida Ativa — {cat_sida} ({len(rv_insc)} {plural(len(rv_insc), 'inscrição', 'inscrições')})"})
         for insc in rv_insc:
             prot = " — ⚠ protestada" if insc.get("protesto") else ""
             blocos.append({"type":"bullet",
@@ -1378,7 +1385,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             receitas = ", ".join(i["receita"] for i in inscricoes)
             total_insc = len(inscricoes)
             blocos.append({"type":"label",
-                "text": f"Dívida Ativa — {total_insc} inscrição(ões) na PGFN"})
+                "text": f"Dívida Ativa — {total_insc} {plural(total_insc, 'inscrição', 'inscrições')} na PGFN"})
             blocos.append({"type":"normal", "text": f"Receitas: {receitas}"})
             blocos.append({"type":"normal_bold",
                 "text": f"Inscritas em {data} — situação: ",
@@ -1447,7 +1454,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             vp_    = fmt(op.get("valor_prestacao", 0))
             total_ = fmt(op.get("total_a_pagar", 0))
             nd_    = op.get("num_dividas", 0)
-            blocos.append({"type":"italic","text":f"{cat} — {nd_} inscrição(ões) negociável(is)"})
+            blocos.append({"type":"italic","text":f"{cat} — {nd_} {plural(nd_, 'inscrição negociável', 'inscrições negociáveis')}"})
             if np_ == 1:
                 blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ","bold":f"1x de {vp_}"})
             else:
@@ -1491,8 +1498,9 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None):
     # Simulação de Parcelamento ICMS — Site do Contribuinte (SEFAZ-SP)
     if tem_icms:
         blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Dívida Ativa: ICMS DEVIDO*"})
+        qtd_icms = icms['quantidade_dividas']
         blocos.append({"type":"italic",
-            "text": f"ICMS Devido — {icms['quantidade_dividas']} inscrição(ões) negociável(is)"})
+            "text": f"ICMS Devido — {qtd_icms} {plural(qtd_icms, 'inscrição negociável', 'inscrições negociáveis')}"})
         if icms.get("num_parcelas"):
             blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
                 "bold": f"{icms['num_parcelas']}x de {fmt(icms['valor_parcela'])} — Total: {fmt(icms['total'])}"})
@@ -1730,7 +1738,7 @@ def montar_municipal(municipal, hoje):
         # Agrupar débitos por receita
         agrupados = {}
         for d in debitos_fonte:
-            chave = f"{d['receita']} {d['ano']} ({d['status']})"
+            chave = f"{d['receita']} {d['ano']} ({d['status']})" if d.get("status") else f"{d['receita']} {d['ano']}"
             agrupados.setdefault(chave, {"parcelas":[], "a_pagar":0.0})
             if d.get("parcela"):
                 agrupados[chave]["parcelas"].append(d["parcela"])
@@ -1760,7 +1768,7 @@ def montar_municipal(municipal, hoje):
             melhor = max(opcoes, key=lambda o: o["num_parcelas"])
             qtd = len(municipal.get("debitos", []))
             blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Débitos da prefeitura*"})
-            blocos.append({"type":"italic","text":f"Débitos — {qtd} inscrição(ões) negociável(is)"})
+            blocos.append({"type":"italic","text":f"Débitos — {qtd} {plural(qtd, 'inscrição negociável', 'inscrições negociáveis')}"})
             blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
                 "bold": f"{melhor['num_parcelas']}x de {fmt(melhor['demais'])} — Total: {fmt(municipal.get('total', melhor['demais']*melhor['num_parcelas']))}"})
         else:
