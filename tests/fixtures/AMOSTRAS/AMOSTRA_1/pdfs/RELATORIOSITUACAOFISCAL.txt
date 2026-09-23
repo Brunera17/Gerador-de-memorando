@@ -21,7 +21,7 @@ Opção pelo SIMEI
 Inclusão Exclusão
 09/08/2022 30/09/2024
 Sócios e Administradores ________________________________________________________________________________________
-CPF/CNPJ Nome Qualificação Situação Cadastral Cap. Social Cap. Votante
+CPF/CNPJ Nome Qualificação Situação Cadastral Cap. ALFA Cap. Votante
 111.111.111-11 EMPRESA MODELO ALFA SÓCIO-ADMINISTRADOR REGULAR 100,00%
 Certidão Emitida ________________________________________________________________________________________________
 CNPJ: 11.111.111/0001-11

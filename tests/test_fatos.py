@@ -51,6 +51,7 @@ def extrair_fatos(t):
     federal = pf.extrair_federal(get("federal"))
     parc_sn = pf.extrair_parcelamento_sn(get("parcelamento_sn"))
     analise = pf.extrair_analise_previa_sn(get("analise_previa_sn"))
+    ipva = pf.extrair_ipva(get("estadual_ipva"))
     return {
         "multas_total": decl["total_multas"],
         "multas_qtd": len(decl["declaracoes"]),
@@ -72,6 +73,8 @@ def extrair_fatos(t):
         "parc_sn_total": parc_sn["valor_total"],
         "parc_sn_num_parcelas": parc_sn["num_parcelas"],
         "analise_previa_indeferida": analise["indeferida"],
+        "ipva_total": ipva["total"],
+        "ipva_veiculos": len(ipva["veiculos"]),
     }
 
 
@@ -105,6 +108,9 @@ CASOS_ESPERADOS = {
         "mei_quantidade": 19,
     },
     "AMOSTRAS/AMOSTRA_1": {
+        # Único caso com memorando validado real além dos 4 originais — parc_sn_total,
+        # municipal_total_parcelamento, analise_previa_indeferida e ipva_total batem
+        # exatamente com o memorando validado (não só com o PDF de origem).
         "federal_certidao_tipo": "Certidão Negativa",
         "federal_debitos": 7,
         "parc_sn_total": 37986.19,
@@ -113,6 +119,8 @@ CASOS_ESPERADOS = {
         "municipal_total_parcelamento": 406.92,
         "estadual_certidoes": 1,
         "analise_previa_indeferida": True,
+        "ipva_total": 8362.47,
+        "ipva_veiculos": 1,
     },
     "AMOSTRAS/AMOSTRA_2": {
         "estadual_certidoes": 2,

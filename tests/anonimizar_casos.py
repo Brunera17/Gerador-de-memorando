@@ -35,6 +35,8 @@ CNPJ_FICTICIOS = ["11.111.111/0001-11", "22.222.222/0001-22", "33.333.333/0001-3
                   "44.444.444/0001-44", "55.555.555/0001-55", "66.666.666/0001-66"]
 CPF_FICTICIO_FMT = "111.111.111-11"
 CPF_FICTICIO_DIG = "11111111111"
+PLACA_FICTICIA = "ABC1D23"
+RENAVAM_FICTICIO = "00000000000"
 
 LABEL_PATTERNS = [
     r"Consulta da empresa:\s*([^\n]+)",
@@ -158,6 +160,17 @@ def coletar_cpfs(textos, variantes_nome):
     return achados
 
 
+def coletar_veiculos(textos):
+    """Placas (Mercosul) e RENAVAM — identificam um bem específico do cliente,
+    tratados com o mesmo cuidado que CNPJ/CPF."""
+    placas, renavams = set(), set()
+    for t in textos:
+        for m in re.finditer(r'\b([A-Z]{3}\d[A-Z0-9]\d{2})\s+(\d{9,11})\b', t):
+            placas.add(m.group(1))
+            renavams.add(m.group(2))
+    return placas, renavams
+
+
 def palavras_identificadoras(variantes_nome):
     """Toda palavra >=3 letras das variantes de nome, exceto termos genéricos."""
     palavras = set()
@@ -201,7 +214,13 @@ def montar_substituicoes(textos, nome_fake, cnpj_fake):
         subs.append((re.compile(re.escape(cpf)), CPF_FICTICIO_FMT))
         subs.append((re.compile(re.escape(digitos)), CPF_FICTICIO_DIG))
 
-    return subs, variantes_nome, cnpjs
+    placas, renavams = coletar_veiculos(textos)
+    for p in placas:
+        subs.append((re.compile(r'\b' + re.escape(p) + r'\b'), PLACA_FICTICIA))
+    for rv in renavams:
+        subs.append((re.compile(r'\b' + re.escape(rv) + r'\b'), RENAVAM_FICTICIO))
+
+    return subs, variantes_nome, cnpjs, placas, renavams
 
 
 def linha_embaralhada(linha, limite=0.33):
@@ -228,7 +247,7 @@ def aplicar(texto, subs):
     return "\n".join(linhas)
 
 
-def checar_residuos(texto, variantes_nome, cnpjs):
+def checar_residuos(texto, variantes_nome, cnpjs, placas=(), renavams=()):
     """Checagem independente das trocas: acento/caixa ignorados dos dois lados."""
     t_norm = sem_acento(texto).lower()
     achados = []
@@ -239,6 +258,12 @@ def checar_residuos(texto, variantes_nome, cnpjs):
         digitos = re.sub(r"\D", "", c)
         if digitos in re.sub(r"\D", "", texto):
             achados.append(f"CNPJ {c}")
+    for p in placas:
+        if re.search(r'\b' + re.escape(p) + r'\b', texto):
+            achados.append(f"placa {p}")
+    for rv in renavams:
+        if re.search(r'\b' + re.escape(rv) + r'\b', texto):
+            achados.append(f"RENAVAM {rv}")
     return achados
 
 
@@ -283,7 +308,7 @@ def main():
             nome_fake = NOMES_FICTICIOS[pos % len(NOMES_FICTICIOS)]
             cnpj_fake = CNPJ_FICTICIOS[pos % len(CNPJ_FICTICIOS)]
             idx += 1
-            subs, variantes_nome, cnpjs = montar_substituicoes(todos_textos, nome_fake, cnpj_fake)
+            subs, variantes_nome, cnpjs, placas, renavams = montar_substituicoes(todos_textos, nome_fake, cnpj_fake)
 
             # Nome de pasta NUNCA pode vir do nome real do caso (foi assim que o nome de
             # um cliente vazou para o GitHub antes) — usa um contador genérico por grupo.
@@ -295,7 +320,7 @@ def main():
             nomes_usados = set()
             for f, t in textos_pdf.items():
                 t2 = aplicar(t, subs)
-                r = checar_residuos(t2, variantes_nome, cnpjs)
+                r = checar_residuos(t2, variantes_nome, cnpjs, placas, renavams)
                 if r:
                     residuos_caso += len(r)
                     print(f"   ⚠ {f.name}: {r}")
@@ -308,7 +333,7 @@ def main():
 
             if texto_docx is not None:
                 t2 = aplicar(texto_docx, subs)
-                r = checar_residuos(t2, variantes_nome, cnpjs)
+                r = checar_residuos(t2, variantes_nome, cnpjs, placas, renavams)
                 if r:
                     residuos_caso += len(r)
                     print(f"   ⚠ {docx[0].name}: {r}")

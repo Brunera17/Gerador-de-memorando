@@ -3,7 +3,7 @@ SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 11.111.111
 PROCURADORIA-GERAL DA FAZENDA NACIONAL 18/09/2026 15:25:45
 INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
 Página: 1 / 2
-CNPJ: 11.111.111 - EMPRESA MODELO ALFA 11111111111
+CNPJ: 11.111.111 - EMPRESA MODELO ALFA 111.111.111-11
 Dados Cadastrais da Matriz ______________________________________________________________________________________
 CNPJ: 11.111.111/0001-11
 UA de Domicílio: ARF ITU-SP Código da UA: 08.110.03
@@ -35,7 +35,7 @@ SECRETARIA ESPECIAL DA RECEITA FEDERAL DO BRASIL CNPJ do certificado: 11.111.111
 PROCURADORIA-GERAL DA FAZENDA NACIONAL 18/09/2026 15:25:45
 INFORMAÇÕES DE APOIO PARA EMISSÃO DE CERTIDÃO
 Página: 2 / 2
-CNPJ: 11.111.111 - EMPRESA MODELO ALFA 11111111111
+CNPJ: 11.111.111 - EMPRESA MODELO ALFA 111.111.111-11
 Inscrição com Exigibilidade Suspensa (SIDA) _____________________________________________________________________
 CNPJ: 11.111.111/0001-11
 Inscrição Receita Inscrito em Ajuizado em Processo Tipo de Devedor

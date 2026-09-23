@@ -4,10 +4,10 @@ ativa da União e do FGTS
 Dados obtidos em 25/08/2026 às
 20:43
 Por: EMPRESA MODELO ALFA
-11111111111
+111.111.111-11
 CPF/CNPJ: 11.111.111/0001-11
 Relatório Consolidado da Dívida
-Devedor: EMPRESA MODELO ALFA 11111111111
+Devedor: EMPRESA MODELO ALFA 111.111.111-11
 CPF/CNPJ: 11.111.111/0001-11
 Naturezas selecionadas: Tributárias / Não Tributárias / Previdenciárias / Simples Nacional / FGTS
 Situações selecionadas: Ativas em Cobrança / Negociadas / Garantidas / Suspensas / Extintas

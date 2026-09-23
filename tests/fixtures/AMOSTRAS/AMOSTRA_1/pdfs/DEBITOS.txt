@@ -1,0 +1,27 @@
+DÉBITOS DE IPVA VINCULADOS AO SUJEITO PASSIVO
+Data e hora da consulta: 22/09/2026 17:01:34
+Esta pesquisa tem caráter apenas informativo. NÃO é válida como certidão.
+OBSERVAÇÕES IMPORTANTES
+1. Proprietário, caso algum dado do veículo esteja incorreto, procure uma unidade do Detran para regularização.
+2. Não deixe de comunicar ao órgão de trânsito, no prazo de até 30 (trinta) dias:
+- o seu novo endereço, ainda que dentro do mesmo município;
+- a venda de seu veículo ou a transferência para a seguradora, em caso de indenização.
+3. As informações desta consulta são do dia anterior. Caso você tenha regularizado hoje, favor consultar novamente amanhã.
+DADOS DO SUJEITO PASSIVO
+CNPJ: 11.111.111/0001-EMPRESA MODELO ALFA
+DÉBITOS DE IPVA
+Para informações detalhadas dos débitos vinculados ao veículo, acesse https://www.ipva.fazenda.sp.gov.br/ipvanet
+Para detalhes e pagamento de débitos inscritos em dívida ativa, acesse https://www.dividaativa.pge.sp.gov.br/
+Placa Renavam Município
+ABC1D23 00000000000 366-9 Itaí
+Exercício Valor Tipo do sujeito passivo Nº da notificação Tipo de Vínculo
+2026 R$ 8.362,47 Contribuinte 999656259 Proprietário
+CENTRAL DE ATENDIMENTO - IPVA
+0800-0170110 (exclusivo para telefone fixo)
+(11) 2450-6810 (exclusivo para telefone móvel)
+Nossa estrutura de atendimento telefônico atua em duas modalidades:
+• Atendimento humano: de segunda a sexta-feira das 8 às 19 horas;
+• Atendimento eletrônico: disponibiliza informações 24 horas, inclusive aos sábados, domingos e feriados.
+Correio Eletrônico: acesse https://portal.fazenda.sp.gov.br/Paginas/Correio-Eletronico.aspx
+SECRETARIA DA FAZENDA E PLANEJAMENTO DO ESTADO DE SÃO PAULO
+<ENDEREÇO OCULTADO>
