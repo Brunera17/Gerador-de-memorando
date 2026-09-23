@@ -20,6 +20,9 @@ Para quem prefere não usar linha de comando: sobe todos os PDFs juntos (o
 programa classifica sozinho), confere os valores extraídos na tela, ajusta
 os honorários se quiser, e baixa o `.docx` pronto.
 
+Passo a passo completo, com a lista de documentos suportados e o que fazer
+em cada tela: [MANUAL_DE_USO.md](MANUAL_DE_USO.md).
+
 ```bash
 streamlit run app.py
 ```
