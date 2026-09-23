@@ -60,6 +60,8 @@ def classificar_pdf(texto):
         return "parcelamento_pgdau_prestacoes"
     if "parcelas disponíveis para impressão" in t and "parcela" in t and "valor" in t:
         return "parcelamento_mei_emissao"
+    if "pgmei" in t and "programa gerador de das" in t and "microempreendedor individual" in t:
+        return "mei_pgmei"
     if "parcelamento do simples nacional" in t and "nome empresarial" in t:
         if "valores dos débitos não são suficientes" in t or "valores dos debitos nao sao suficientes" in t:
             return "parc_sn_indisponivel"
@@ -665,6 +667,56 @@ def extrair_mei_emissao_parcela(texto):
     r["quantidade"] = len(valores)
     r["valor_parcela"] = valores[0]  # valor mensal costuma ser uniforme
     r["total"] = round(sum(valores), 2)
+    return r
+
+
+_MESES_PGMEI = "Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro"
+
+def extrair_pgmei(texto):
+    """Extrai os DAS mensais do MEI a partir do PGMEI (Programa Gerador de DAS
+    do Microempreendedor Individual). O relatório traz um ano-calendário por
+    vez: meses sem apuração ainda calculada aparecem com "-" em todas as
+    colunas, os demais já trazem Principal/Multa/Juros/Total — só esses
+    entram como débito em atraso. O PGMEI também não libera o ano seguinte
+    enquanto a DASN do ano exibido não for entregue — esses anos ficam
+    listados à parte, "em aberto", contando um mês por guia até o mês atual.
+    Baseado em um único exemplo real — layout pode variar em outros casos.
+    """
+    r = {"encontrado": False, "ano_calendario": 0, "meses_em_atraso": [], "total_atraso": 0.0, "anos_em_aberto": []}
+    if not texto:
+        return r
+    m_ano = re.search(r'(\d{4})\s+Ok\b', texto)
+    if not m_ano:
+        return r
+    r["encontrado"] = True
+    ano = int(m_ano.group(1))
+    r["ano_calendario"] = ano
+
+    def parse_valor(s):
+        return 0.0 if s == "-" else float(s.replace("R$", "").strip().replace(".", "").replace(",", "."))
+
+    padrao_mes = re.compile(
+        rf'({_MESES_PGMEI})/(\d{{4}})\s+(Sim|Não)\s+'
+        rf'(-|R\$\s?[\d.,]+)\s+(-|R\$\s?[\d.,]+)\s+(-|R\$\s?[\d.,]+)\s+(-|R\$\s?[\d.,]+)\s+'
+        rf'(-|\d{{2}}/\d{{2}}/\d{{4}})\s+(-|\d{{2}}/\d{{2}}/\d{{4}})'
+    )
+    for m in padrao_mes.finditer(texto):
+        mes, ano_mes, _apurado, principal, multa, juros, total, venc, acol = m.groups()
+        if total == "-":
+            continue
+        r["meses_em_atraso"].append({
+            "mes": mes, "ano": ano_mes,
+            "principal": parse_valor(principal), "multa": parse_valor(multa),
+            "juros": parse_valor(juros), "total": parse_valor(total),
+            "vencimento": venc, "acolhimento": acol,
+        })
+    r["total_atraso"] = round(sum(x["total"] for x in r["meses_em_atraso"]), 2)
+
+    hoje = date.today()
+    for ano_pendente in range(ano + 1, hoje.year + 1):
+        qtd_meses = 12 if ano_pendente < hoje.year else hoje.month
+        r["anos_em_aberto"].append({"ano": ano_pendente, "quantidade_guias": qtd_meses})
+
     return r
 
 
@@ -1277,7 +1329,7 @@ def blocos_para_xml(blocos):
 # ══════════════════════════════════════════════════════════
 
 def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas,
-                    pgdau_prest=None, mei_emissao=None, analise_previa=None):
+                    pgdau_prest=None, mei_emissao=None, analise_previa=None, pgmei=None):
     blocos = []
     # Alerta de indeferimento do Simples Nacional (Relatório de Análise Prévia) —
     # vem primeiro por ser a informação mais urgente do memorando quando presente.
@@ -1312,7 +1364,8 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     # Parcelas em atraso de parcelamentos já ativos — MEI (eCAC) e Dívida Ativa (PGFN)
     tem_mei_atraso = mei_emissao and mei_emissao.get("encontrado")
     tem_dau_atraso = pgdau_prest and pgdau_prest.get("encontrado") and pgdau_prest.get("valor_parcela_atual", 0) > 0
-    if tem_mei_atraso or tem_dau_atraso:
+    tem_pgmei_atraso = pgmei and pgmei.get("encontrado") and pgmei.get("meses_em_atraso")
+    if tem_mei_atraso or tem_dau_atraso or tem_pgmei_atraso:
         blocos.append({"type":"label","text":"Débitos:"})
         if tem_mei_atraso:
             blocos.append({"type":"bullet",
@@ -1324,6 +1377,23 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
                 "bold": fmt(pgdau_prest['valor_parcela_atual']) +
                         (f" (Restando {pgdau_prest['parcelas_restantes']} parcelas a vencer)"
                          if pgdau_prest.get("parcelas_restantes", 0) > 0 else "") + "."})
+        if tem_pgmei_atraso:
+            meses = pgmei["meses_em_atraso"]
+            qtd = len(meses)
+            faixa = (f"{meses[0]['mes']}/{meses[0]['ano']} a {meses[-1]['mes']}/{meses[-1]['ano']}"
+                     if qtd > 1 else f"{meses[0]['mes']}/{meses[0]['ano']}")
+            blocos.append({"type":"bullet",
+                "normal": f"DAS MEI EM ATRASO – {faixa} ({qtd} {plural(qtd, 'guia', 'guias')}) totalizando ",
+                "bold": fmt(pgmei['total_atraso']) + "."})
+
+    # Anos do MEI ainda não liberados no PGMEI (dependem da entrega da DASN
+    # do ano exibido) — sem valor de DAS calculado ainda, só o aviso.
+    if pgmei and pgmei.get("anos_em_aberto"):
+        for info in pgmei["anos_em_aberto"]:
+            blocos.append({"type":"date",
+                "text": f"* DAS MEI {info['ano']}: em aberto — liberado após a entrega da DASN "
+                        f"{pgmei['ano_calendario']} ({info['quantidade_guias']} "
+                        f"{plural(info['quantidade_guias'], 'guia pendente', 'guias pendentes')})."})
 
     if federal.get("debitos"):
         por_receita = {}
@@ -1547,9 +1617,10 @@ TABELA_HONORARIOS = {
     "EFD_CONTRIB":                 120.00,  # por ano
     "PARCELAMENTO_MEI":            150.00,  # único
     "CONSULTA_REPARCELAMENTO":      60.00,  # único
+    "RETIFICACAO_DAS_MEI":          10.00,  # por guia (mês em atraso no PGMEI, ou mês pendente de ano ainda não liberado)
 }
 
-def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores):
+def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei=None):
     """Calcula automaticamente os honorários com base nas pendências do cliente."""
     itens = []  # [{"descricao": str, "qtd": int, "valor_unit": float, "total": float}]
 
@@ -1634,6 +1705,20 @@ def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, pa
             "qtd": 1, "valor_unit": unit, "total": unit
         })
 
+    # ── PGMEI — DAS mensal do MEI em atraso + meses de anos ainda não
+    # liberados (pendentes da entrega da DASN) — cobrado por guia, cada uma
+    # precisando de retificação/emissão avulsa.
+    if pgmei and pgmei.get("encontrado"):
+        qtd_atraso = len(pgmei.get("meses_em_atraso", []))
+        qtd_em_aberto = sum(a["quantidade_guias"] for a in pgmei.get("anos_em_aberto", []))
+        qtd = qtd_atraso + qtd_em_aberto
+        if qtd:
+            unit = TABELA_HONORARIOS["RETIFICACAO_DAS_MEI"]
+            itens.append({
+                "descricao": f"Retificação DAS MEI ({qtd}x)",
+                "qtd": qtd, "valor_unit": unit, "total": qtd * unit
+            })
+
     # Deduplicar CONSULTA_REPARCELAMENTO (cobrar só uma vez mesmo com múltiplas fontes)
     visto_reparc = False
     itens_dedup = []
@@ -1649,7 +1734,7 @@ def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, pa
 
 
 def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, hoje,
-                  parc_sn=None, parc_simp=None, parc_dau=None, parc_sispar=None, reg_valores=None):
+                  parc_sn=None, parc_simp=None, parc_dau=None, parc_sispar=None, reg_valores=None, pgmei=None):
     """Gera o bloco de resumo final do memorando."""
     blocos = []
     blocos.append({"type":"label","text":"RESUMO"})
@@ -1657,10 +1742,11 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
     # Calcular honorários automaticamente se não passado manualmente
     if honorarios == 0 and any([parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores,
                                  decl_omissas and decl_omissas.get("encontrado"),
-                                 municipal and municipal.get("tem_debitos")]):
+                                 municipal and municipal.get("tem_debitos"),
+                                 pgmei and pgmei.get("encontrado")]):
         calc = calcular_honorarios(
             federal, decl_omissas, municipal,
-            parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores
+            parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei
         )
         honorarios_calc = calc["total"]
         itens_honorarios = calc["itens"]
@@ -1854,7 +1940,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     nenhum arquivo. Usado pelo main() (CLI) e pela interface web, para que
     os dois caminhos rodem exatamente a mesma lógica de extração.
     """
-    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","analise_previa_sn"}
+    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","analise_previa_sn","mei_pgmei"}
     textos = {}
     classificacao = []  # [(nome_exibido, tipo), ...] — para revisão antes de gerar
 
@@ -1895,6 +1981,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     pgdau_prest = extrair_pgdau_prestacoes(get("parcelamento_pgdau_prestacoes"))
     analise_previa = extrair_analise_previa_sn(get("analise_previa_sn"))
     mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
+    pgmei       = extrair_pgmei(get("mei_pgmei"))
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
     icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
@@ -1908,14 +1995,14 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "NOME_EMPRESA":             nome or "EMPRESA NÃO IDENTIFICADA",
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
-        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa),
+        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa, pgmei),
         "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
-        "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores),
+        "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
-    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
+    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
 
     resumo = {
         "empresa": nome, "cnpj": cnpj,
