@@ -35,14 +35,15 @@ st.set_page_config(page_title="Gerador de Memorando", page_icon="📄", layout="
 # Os modelos com o timbrado do escritório ficam na raiz do projeto e NÃO são
 # versionados (contêm a identidade visual do escritório) — o repositório só
 # traz os modelos de templates/, sem timbrado, como ponto de partida.
+# Rótulo claro (o que é + se tem timbrado) em vez do nome cru do arquivo.
 def templates_disponiveis():
-    candidatos = {
-        "MODELO_MEMORANDO_n8n.docx": RAIZ / "MODELO_MEMORANDO_n8n.docx",
-        "modelo word.docx (Projeção)": RAIZ / "modelo word.docx",
-        "templates/modelo_memorando.docx (sem timbrado)": RAIZ / "templates" / "modelo_memorando.docx",
-        "templates/modelo_projecao.docx (sem timbrado)": RAIZ / "templates" / "modelo_projecao.docx",
-    }
-    return {nome: caminho for nome, caminho in candidatos.items() if caminho.is_file()}
+    candidatos = [
+        ("Memorando de Consulta Fiscal — com timbrado do escritório", RAIZ / "MODELO_MEMORANDO_n8n.docx"),
+        ("Projeção de Imposto — com timbrado do escritório", RAIZ / "modelo word.docx"),
+        ("Memorando de Consulta Fiscal — sem timbrado (modelo genérico)", RAIZ / "templates" / "modelo_memorando.docx"),
+        ("Projeção de Imposto — sem timbrado (modelo genérico)", RAIZ / "templates" / "modelo_projecao.docx"),
+    ]
+    return {nome: caminho for nome, caminho in candidatos if caminho.is_file()}
 
 
 def formatar_moeda(v):
@@ -59,6 +60,7 @@ with st.sidebar:
         st.stop()
     nome_modelo = st.selectbox("Modelo do memorando", list(modelos.keys()))
     template_path = modelos[nome_modelo]
+    st.caption(f"Arquivo: `{template_path.name}`")
 
     st.caption(
         "Os honorários são calculados automaticamente a partir das pendências "
