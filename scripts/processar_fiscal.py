@@ -712,10 +712,19 @@ def extrair_pgmei(texto):
         })
     r["total_atraso"] = round(sum(x["total"] for x in r["meses_em_atraso"]), 2)
 
+    # Valor padrão do DAS (só o Principal, sem multa/juros/encargos — esses
+    # dependem da data de pagamento, que ainda não existe pra guia futura) —
+    # usado como base para estimar o mínimo devido nos anos ainda em aberto.
+    valor_padrao = r["meses_em_atraso"][-1]["principal"] if r["meses_em_atraso"] else 0.0
+
     hoje = date.today()
     for ano_pendente in range(ano + 1, hoje.year + 1):
         qtd_meses = 12 if ano_pendente < hoje.year else hoje.month
-        r["anos_em_aberto"].append({"ano": ano_pendente, "quantidade_guias": qtd_meses})
+        r["anos_em_aberto"].append({
+            "ano": ano_pendente,
+            "quantidade_guias": qtd_meses,
+            "valor_minimo": round(valor_padrao * qtd_meses, 2),
+        })
 
     return r
 
@@ -1387,13 +1396,17 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
                 "bold": fmt(pgmei['total_atraso']) + "."})
 
     # Anos do MEI ainda não liberados no PGMEI (dependem da entrega da DASN
-    # do ano exibido) — sem valor de DAS calculado ainda, só o aviso.
+    # do ano exibido) — não dá pra saber o valor exato (falta multa/juros,
+    # que dependem da data de pagamento), então mostra um mínimo estimado
+    # (guias pendentes × valor padrão do DAS, sem multa/juros/encargos).
     if pgmei and pgmei.get("anos_em_aberto"):
         for info in pgmei["anos_em_aberto"]:
+            valor_min = f" Valor mínimo estimado: {fmt(info['valor_minimo'])}." if info.get("valor_minimo") else ""
             blocos.append({"type":"date",
                 "text": f"* DAS MEI {info['ano']}: em aberto — liberado após a entrega da DASN "
                         f"{pgmei['ano_calendario']} ({info['quantidade_guias']} "
-                        f"{plural(info['quantidade_guias'], 'guia pendente', 'guias pendentes')})."})
+                        f"{plural(info['quantidade_guias'], 'guia pendente', 'guias pendentes')})."
+                        f"{valor_min}"})
 
     if federal.get("debitos"):
         por_receita = {}
@@ -1858,6 +1871,18 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
         if saldo_atraso > 0:
             partes_fed.append(f"{fmt(saldo_atraso)} parcelas")
             total_fed += saldo_atraso
+
+    # PGMEI — DAS MEI em atraso (valor real) + mínimo estimado do(s) ano(s)
+    # ainda em aberto (mesmo critério do corpo do texto: soma tudo que é
+    # dinheiro devido, não só o que já tem valor 100% fechado).
+    if pgmei and pgmei.get("encontrado"):
+        if pgmei.get("total_atraso", 0) > 0:
+            partes_fed.append(fmt(pgmei["total_atraso"]))
+            total_fed += pgmei["total_atraso"]
+        valor_min_aberto = sum(a.get("valor_minimo", 0.0) for a in pgmei.get("anos_em_aberto", []))
+        if valor_min_aberto > 0:
+            partes_fed.append(fmt(valor_min_aberto))
+            total_fed += valor_min_aberto
 
     if partes_fed:
         blocos.append({"type":"bullet",

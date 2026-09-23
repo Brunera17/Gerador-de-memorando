@@ -255,6 +255,7 @@ if resultado:
             resultado["dados_json"]["parcelamento_dau"],
             resultado["dados_json"]["parcelamento_sispar"],
             resultado["dados_json"]["regularize_valores"],
+            resultado["dados_json"]["pgmei"],
         )
     else:
         dados_finais = resultado["dados_template"]
