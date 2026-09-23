@@ -1683,8 +1683,13 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
             "normal": "Âmbito Federal: ",
             "bold":   " + ".join(partes_fed)})
 
-    # Municipal
-    total_mun = municipal.get("total", 0.0) if municipal else 0.0
+    # Municipal — mesma prioridade usada no corpo do texto: quando há um
+    # levantamento específico do que entra no parcelamento, o total do
+    # resumo tem que bater com o total mostrado no âmbito, não com a
+    # certidão sozinha.
+    total_mun = 0.0
+    if municipal:
+        total_mun = municipal.get("total_parcelamento", 0.0) or municipal.get("total", 0.0)
     if total_mun > 0:
         blocos.append({"type":"bullet",
             "normal": "Âmbito Municipal: ",
