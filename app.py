@@ -39,9 +39,7 @@ st.set_page_config(page_title="Gerador de Memorando", page_icon="📄", layout="
 def templates_disponiveis():
     candidatos = [
         ("Memorando de Consulta Fiscal — com timbrado do escritório", RAIZ / "MODELO_MEMORANDO_n8n.docx"),
-        ("Projeção de Imposto — com timbrado do escritório", RAIZ / "modelo word.docx"),
         ("Memorando de Consulta Fiscal — sem timbrado (modelo genérico)", RAIZ / "templates" / "modelo_memorando.docx"),
-        ("Projeção de Imposto — sem timbrado (modelo genérico)", RAIZ / "templates" / "modelo_projecao.docx"),
     ]
     return {nome: caminho for nome, caminho in candidatos if caminho.is_file()}
 
