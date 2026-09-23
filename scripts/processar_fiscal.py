@@ -1609,15 +1609,104 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None
     return blocos_para_xml(blocos)
 
 
-# Tabela de preços dos serviços
+# Tabela de preços do escritório — lista completa de serviços, para consulta
+# manual e como fonte única de valores para TABELA_HONORARIOS abaixo. Nem
+# todo item tem extrator automático ainda. Cada valor é (preço, unidade) —
+# preço None quando o próprio preço é uma fórmula (ex.: "30% do recuperado")
+# em vez de um valor fixo.
+TABELA_PRECOS_ESCRITORIO = {
+    "XEROX/IMPRESSÃO":                                    (1.50,    "UN"),
+    "RETIFICAÇÃO DAS MEI":                                (10.00,   "UN"),
+    "IMPOSTO DE RENDA":                                   (120.00,  "A PARTIR DE"),
+    "RETIFICAÇÃO DE GUIA DO IMPOSTO DE RENDA":            (20.00,   "A PARTIR DE"),
+    "PEDIDO DE COMPRA":                                   (70.00,   "A PARTIR DE"),
+    "GUIA DE INSS AVULSA":                                (15.00,   "UN"),
+    "ORÇAMENTO":                                          (100.00,  "A PARTIR DE"),
+    "RETIFICAÇÃO DE IMPOSTO DE RENDA":                    (100.00,  "A PARTIR DE"),
+    "CERTIFICADO DIGITAL A1":                             (280.00,  "UN"),
+    "CERTIFICADO DIGITAL A3":                             (550.00,  "UN"),
+    "CONSULTA E REPARCELAMENTO DE DÉBITOS":               (60.00,   "A PARTIR DE"),
+    "RETIFICAÇÃO/ALTERAÇÃO DE CONTRATO":                  (50.00,   "A PARTIR DE"),
+    "RETIFICAÇÃO DE GUIA DE PARCELAMENTO":                (20.00,   "UN"),
+    "RETIFICAÇÃO DE RESCISÃO":                            (50.00,   "UN"),
+    "RETIFICAÇÃO DAS SIMPLES":                            (20.00,   "UN"),
+    "RETIFICAÇÃO FGTS":                                   (20.00,   "UN"),
+    "RETIFICAÇÃO INSS":                                   (20.00,   "UN"),
+    "RETIFICAÇÃO IRRF":                                   (20.00,   "UN"),
+    "RETIFICAÇÃO GRRF":                                   (25.00,   "UN"),
+    "RETIFICAÇÃO ICMS":                                   (20.00,   "UN"),
+    "EMISSÃO NOTA SERVIÇOS":                              (30.00,   "UN"),
+    "EMISSÃO NOTA PRODUTO":                               (35.00,   "A PARTIR DE"),
+    "PACOTE 1 MENSAL (10 NOTAS FISCAIS) - EXCEDENTE R$ 30,00": (200.00, "A PARTIR DE"),
+    "PACOTE 2 MENSAL (15 NOTAS FISCAIS) - EXCEDENTE R$ 30,00": (270.00, "A PARTIR DE"),
+    "PACOTE 3 MENSAL (20 NOTAS FISCAIS) - EXCEDENTE R$ 30,00": (320.00, "A PARTIR DE"),
+    "EMISSÃO CTE":                                        (50.00,   "A PARTIR DE"),
+    "CONTRATO DE ALUGUEL":                                (130.00,  "A PARTIR DE"),
+    "CONTRATO DE COMPRA/VENDA":                           (160.00,  "A PARTIR DE"),
+    "KIT PLACAS OBRIGATORIAS":                            (60.00,   "UN"),
+    "LIVRO DE OCORRENCIA DP":                             (40.00,   "UN"),
+    "LIVRO DE HORAS DP/FISCAL":                           (40.00,   "UN"),
+    "LICITAÇÃO (EDITAL/DOCS)":                            (600.00,  "A PARTIR DE"),
+    "AVCB/CLCB BOMBEIRO":                                 (750.00,  "A PARTIR DE"),
+    "LEITORA DE CERTIFICADO DIGITAL":                     (180.00,  "UN"),
+    "ABERTURA DE CNPJ ME":                                (1380.00, "A PARTIR DE"),
+    "BAIXA DE CNPJ ME":                                   (1680.00, "A PARTIR DE"),
+    "ALTERAÇÃO DE CNPJ ME":                                (1380.00, "A PARTIR DE"),
+    "TRANSFORMAÇÃO DE ME PARA LTDA":                      (1680.00, "A PARTIR DE"),
+    "ABERTURA DE CNPJ MEI":                               (250.00,  "A PARTIR DE"),
+    "BAIXA DE CNPJ MEI":                                  (250.00,  "A PARTIR DE"),
+    "ALTERAÇÃO DE CNPJ MEI":                               (250.00,  "A PARTIR DE"),
+    "REGISTRO DE MARCA E PATENTE":                        (2800.00, "A PARTIR DE"),
+    "REGISTROS DE PJ EM CONSELHOS DE CLASSE":             (550.00,  "A PARTIR DE"),
+    "REGISTRO DE PJ NO CPOM":                             (550.00,  "A PARTIR DE"),
+    "DECLARAÇÃO ANUAL MEI":                               (150.00,  "A PARTIR DE"),
+    "DECLARAÇÃO DEFIS ANUAL SIMPLES NACIONAL":            (250.00,  "A PARTIR DE"),
+    "DECLARAÇÃO DE FATURAMENTO AVULSA":                   (100.00,  "A PARTIR DE"),
+    "TREINAMENTO DE EMISSÃO DE NF":                       (220.00,  "A PARTIR DE"),
+    "HORA DA CONSULTA C/CONTADOR":                        (280.00,  "HORA"),
+    "PGDAS MENSAL":                                       (65.00,   "A PARTIR DE"),
+    "EFD-CONTRIB.":                                       (120.00,  "A PARTIR DE"),
+    "DCTF":                                               (40.00,   "A PARTIR DE"),
+    "GFIP ZERADA":                                        (40.00,   "A PARTIR DE"),
+    "ITR":                                                (300.00,  "A PARTIR DE"),
+    "CAR":                                                (400.00,  "A PARTIR DE"),
+    "DAP":                                                (380.00,  "A PARTIR DE"),
+    "TALÃO DE NOTAS DO PRODUTOR":                         (200.00,  "UN"),
+    "CCIR / INCRA":                                       (380.00,  "A PARTIR DE"),
+    "CERTIDÃO DE MATRICULA DE IMOVEIS RURAL":             (180.00,  "A PARTIR DE"),
+    "EMISSÃO DE GTA RURAL":                               (45.00,   "A PARTIR DE"),
+    "INTERMEDIAR ACORDO TRABALHISTA":                     (600.00,  "A PARTIR DE"),
+    "ABERTURA DE PRODUTOR RURAL":                         (750.00,  "A PARTIR DE"),
+    "ALTERAÇÃO CNPJ RURAL":                               (600.00,  "A PARTIR DE"),
+    "DECLARAÇÃO DE VACINAÇÃO DE GADO":                    (150.00,  "A PARTIR DE"),
+    "RECUPERAÇÃO TRIBUTARIA":                             (None,    "30% DO VALOR RECUPERADO"),
+    "SUSPENÇÃO DE CNPJ":                                  (1080.00, "A PARTIR DE"),
+    "GCAP (GANHO DE CAPITAL) CARRO":                      (200.00,  "A PARTIR DE"),
+    "GCAP (GANHO DE CAPITAL) CASA":                       (380.00,  "A PARTIR DE"),
+    "GCAP (GANHO DE CAPITAL) PROPRIEDADE RURAL":          (750.00,  "A PARTIR DE"),
+    "PARCELAMENTO DAS MEI":                               (150.00,  "A PARTIR DE"),
+    "DCTF WEB SEM MOVIMENTO":                             (180.00,  "A PARTIR DE"),
+    "DCTF COM MOVIMENTO":                                 (200.00,  "A PARTIR DE"),
+    "CNO DE OBRAS":                                       (None,    "30% DO VALOR ECONOMIZADO"),
+    "ENTRADA AUXILIO MATERNDADE MEI":                     (250.00,  "A PARTIR DE"),
+    "ABERTURA DE HOLDING ZERADA":                         (5000.00, "A PARTIR DE"),
+    "ABERTURA DE HOLDING COM INTEGRALIZAÇÃO":             (5000.00, "30% DA ECONOMIA"),
+    "ABERTURA DE ASSOCIAÇÃO SEM FINS LUCRATIVOS":         (3000.00, "A PARTIR DE"),
+    "CONSULTORIA EM REFORMA TRIBUTÁRIA":                  (1621.00, "A PARTIR DE"),
+    "COMISSÃO DE SISTEMA NF-E/SAT":                       (None,    "VERIFICAR SISTEMA"),
+}
+
+# Subconjunto de TABELA_PRECOS_ESCRITORIO já usado no cálculo automático de
+# honorários (calcular_honorarios) — puxa o valor de lá para não haver dois
+# lugares com o mesmo preço podendo divergir.
 TABELA_HONORARIOS = {
-    "DECLARACAO_ANUAL_MEI":        150.00,  # por ano
-    "DCTF_WEB_SEM_MOVIMENTO":      180.00,  # sempre 1 (ao fazer uma, demais somem)
-    "DCTF":                         40.00,  # por ano
-    "EFD_CONTRIB":                 120.00,  # por ano
-    "PARCELAMENTO_MEI":            150.00,  # único
-    "CONSULTA_REPARCELAMENTO":      60.00,  # único
-    "RETIFICACAO_DAS_MEI":          10.00,  # por guia (mês em atraso no PGMEI, ou mês pendente de ano ainda não liberado)
+    "DECLARACAO_ANUAL_MEI":        TABELA_PRECOS_ESCRITORIO["DECLARAÇÃO ANUAL MEI"][0],              # por ano
+    "DCTF_WEB_SEM_MOVIMENTO":      TABELA_PRECOS_ESCRITORIO["DCTF WEB SEM MOVIMENTO"][0],            # sempre 1 (ao fazer uma, demais somem)
+    "DCTF":                         TABELA_PRECOS_ESCRITORIO["DCTF"][0],                              # por ano
+    "EFD_CONTRIB":                 TABELA_PRECOS_ESCRITORIO["EFD-CONTRIB."][0],                      # por ano
+    "PARCELAMENTO_MEI":            TABELA_PRECOS_ESCRITORIO["PARCELAMENTO DAS MEI"][0],              # único
+    "CONSULTA_REPARCELAMENTO":      TABELA_PRECOS_ESCRITORIO["CONSULTA E REPARCELAMENTO DE DÉBITOS"][0],  # único
+    "RETIFICACAO_DAS_MEI":          TABELA_PRECOS_ESCRITORIO["RETIFICAÇÃO DAS MEI"][0],              # por guia (mês em atraso no PGMEI, ou mês pendente de ano ainda não liberado)
 }
 
 def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei=None):
