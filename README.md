@@ -24,9 +24,30 @@ os honorários se quiser, e baixa o `.docx` pronto.
 streamlit run app.py
 ```
 
-Abre em `http://localhost:8501`. Por enquanto roda só localmente — cada
-pessoa da equipe precisa rodar o comando na própria máquina (não há
-servidor compartilhado configurado ainda).
+Abre em `http://localhost:8501`.
+
+### Deploy compartilhado (Streamlit Community Cloud)
+
+Para todo mundo do escritório acessar por um link só, sem cada um rodar na
+própria máquina:
+
+1. Em [share.streamlit.io](https://share.streamlit.io), conecte a conta
+   GitHub e escolha este repositório, branch `main`, arquivo principal
+   `app.py`.
+2. Em **Settings → Secrets** do app (no painel do Streamlit Cloud, não no
+   repositório), cole:
+   ```toml
+   senha_acesso = "escolha-uma-senha-forte"
+   ```
+   Sem essa chave configurada o app não pede senha — por isso ela é
+   obrigatória para o deploy compartilhado (ver `.streamlit/secrets.toml.example`).
+3. Em **Settings → Sharing**, deixe o app como privado (restrito aos
+   e-mails da equipe) — a senha acima é uma segunda camada, não substitui
+   essa configuração.
+
+Como os PDFs de clientes passam a ser processados no servidor do Streamlit
+Cloud (não mais só localmente), só suba PDFs por esse link com a senha
+combinada com a equipe, e nunca compartilhe o link publicamente.
 
 ## Uso (linha de comando)
 

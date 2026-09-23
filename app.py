@@ -31,6 +31,42 @@ spec.loader.exec_module(pf)
 st.set_page_config(page_title="Gerador de Memorando", page_icon="📄", layout="wide")
 
 
+# ── Acesso por senha ─────────────────────────────────────────────────────
+# Só entra em vigor quando "senha_acesso" está configurada nos Secrets do
+# Streamlit (é assim que se ativa no deploy na nuvem — ver .streamlit/
+# secrets.toml.example). Sem essa configuração — uso local no escritório —
+# a tela abre direto, sem exigir senha.
+def _senha_protegida():
+    try:
+        return bool(st.secrets.get("senha_acesso"))
+    except Exception:
+        return False
+
+
+def verificar_acesso():
+    if not _senha_protegida():
+        return True
+    if st.session_state.get("autenticado"):
+        return True
+
+    st.title("📄 Gerador de Memorando")
+    st.caption("Acesso restrito — dados de clientes.")
+    with st.form("login"):
+        senha = st.text_input("Senha de acesso", type="password")
+        entrar = st.form_submit_button("Entrar")
+    if entrar:
+        if senha == st.secrets["senha_acesso"]:
+            st.session_state["autenticado"] = True
+            st.rerun()
+        else:
+            st.error("Senha incorreta.")
+    return False
+
+
+if not verificar_acesso():
+    st.stop()
+
+
 # ── Templates disponíveis ────────────────────────────────────────────────
 # Os modelos com o timbrado do escritório ficam na raiz do projeto e NÃO são
 # versionados (contêm a identidade visual do escritório) — o repositório só
