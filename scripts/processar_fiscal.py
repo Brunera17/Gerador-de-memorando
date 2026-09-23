@@ -1356,7 +1356,6 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             sp = federal["parcelamento_siefpar"]
             blocos.append({"type":"parc_siefpar","numero":sp["numero"],"parcelas_em_atraso":sp["parcelas_em_atraso"],"valor_em_atraso":fmt(sp["valor_em_atraso"])})
 
-        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
         blocos.append({"type":"separator"})
 
     # Dívida Ativa: usar Regularize_valores se disponível, senão SIDA do SITUAÇÃO FISCAL
@@ -1401,7 +1400,6 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             faixa = f"{periodos[0]} a {periodos[-1]}" if len(periodos)>1 else periodos[0]
             blocos.append({"type":"italic","text":"Débito com Exigibilidade Suspensa — " + receita.rstrip(".") + "."})
             blocos.append({"type":"bullet","normal":f"Período {faixa} — ","bold":fmt(total)+" (a analisar/vencer)"})
-        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
         blocos.append({"type":"separator"})
 
     if parc_dau.get("encontrado"):
@@ -1438,7 +1436,6 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             "protesto":  parc_dau.get("protesto",False),
             "inscricoes": inscricoes_fmt
         })
-        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
 
     # SISPAR — opções de parcelamento PGFN
     if parc_sispar and parc_sispar.get("encontrado") and parc_sispar.get("opcoes"):
@@ -1465,12 +1462,16 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             cat = op.get("categoria","")
             blocos.append({"type":"date","text":f"* {cat}: sem opção de negociação disponível no momento."})
 
-    if not blocos:
+    # Uma única data "valores atualizados", sempre por último — não uma por
+    # sub-seção (o texto tinha data repetida no meio, sem sentido pra quem lê).
+    if blocos:
+        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
+    else:
         blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
     return blocos_para_xml(blocos)
 
 
-def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None):
+def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None):
     blocos = []
     tem_icms = bool(icms and icms.get("encontrado") and icms.get("total", 0) > 0)
     # IPVA não entra nessa checagem de propósito: no memorando validado que serviu
@@ -1529,6 +1530,11 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None):
                 "text": f"Primeira omissão registrada desde: {data_primeira}"})
         blocos.append({"type":"date",
             "text": "(pendências de entrega de declaração — não representam débito financeiro)"})
+
+    # Uma única data "valores atualizados", sempre por último — mesmo padrão
+    # usado no federal/municipal (mostrar só quando há valor que possa mudar).
+    if estadual.get("tem_debitos") or tem_icms or tem_ipva:
+        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
 
     return blocos_para_xml(blocos)
 
@@ -1763,7 +1769,6 @@ def montar_municipal(municipal, hoje):
 
         if total_fonte > 0:
             blocos.append({"type":"normal_bold","text":"Total a pagar: ","bold":fmt(total_fonte)})
-        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
 
         # Opções de parcelamento (Simulação de Débitos — Fiorilli): mostra a opção
         # com mais parcelas (menor valor mensal), igual ao critério usado nos demais
@@ -1778,6 +1783,9 @@ def montar_municipal(municipal, hoje):
                 "bold": f"{melhor['num_parcelas']}x de {fmt(melhor['demais'])} — Total: {fmt(municipal.get('total', melhor['demais']*melhor['num_parcelas']))}"})
         else:
             blocos.append({"type":"date","text":"*Não há possibilidade de parcelamento*."})
+
+        # Data por último, no lugar de onde ficava o placeholder antigo do modelo.
+        blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
     return blocos_para_xml(blocos)
 
 
@@ -1901,7 +1909,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
         "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa),
-        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva),
+        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
