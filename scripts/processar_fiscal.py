@@ -1826,19 +1826,20 @@ def preencher_docx(template_path, output_path, dados):
 # 6. MAIN
 # ══════════════════════════════════════════════════════════
 
-def main():
-    if len(sys.argv) < 4:
-        print("Uso: python processar_fiscal.py <pasta_pdfs> <template.docx> <output.docx>")
-        sys.exit(1)
-
-    pasta_pdfs, template, output = sys.argv[1], sys.argv[2], sys.argv[3]
+def processar_pasta(pasta_pdfs, honorarios=0.0):
+    """Classifica e extrai os dados de todos os PDFs de uma pasta (modo
+    subpastas federal/estadual/municipal, ou pasta única com classificação
+    automática) e devolve tudo pronto para preencher o modelo — sem gravar
+    nenhum arquivo. Usado pelo main() (CLI) e pela interface web, para que
+    os dois caminhos rodem exatamente a mesma lógica de extração.
+    """
     TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","analise_previa_sn"}
     textos = {}
+    classificacao = []  # [(nome_exibido, tipo), ...] — para revisão antes de gerar
 
     tem_sub = any(os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"])
 
     if tem_sub:
-        print("Modo subpastas detectado.")
         mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
         for sub, tipos_validos in mapa.items():
             caminho_sub = os.path.join(pasta_pdfs, sub)
@@ -1851,15 +1852,14 @@ def main():
                 if tipo not in tipos_validos:
                     tipo = list(tipos_validos)[0]
                 textos.setdefault(tipo, []).append(texto)
-                print(f"  [{sub}/] {arq} → {tipo}")
+                classificacao.append((f"{sub}/{arq}", tipo))
     else:
-        print("Modo pasta única.")
         for arq in sorted(os.listdir(pasta_pdfs)):
             if not arq.lower().endswith(".pdf"): continue
             texto = extrair_texto_pdf(os.path.join(pasta_pdfs, arq))
             tipo  = classificar_pdf(texto)
             textos.setdefault(tipo, []).append(texto)
-            print(f"  {arq} → {tipo}")
+            classificacao.append((arq, tipo))
 
     def get(tipo): return "\n\n".join(textos.get(tipo,[])) or ""
 
@@ -1881,29 +1881,6 @@ def main():
     municipal   = extrair_municipal(get("municipal"))
     hoje        = date.today().strftime("%d.%m.%Y")
 
-    print("\n=== RESUMO ===")
-    print(f"Empresa        : {nome}")
-    print(f"CNPJ           : {cnpj}")
-    print(f"Federal        : {federal['status']}")
-    print(f"Parc. SN       : {'SIM' if parc_sn.get('encontrado') else 'não'}{' (indisponível)' if parc_sn.get('indisponivel') else ''}")
-    print(f"Parc. Simplif. : {'SIM' if parc_simp.get('encontrado') else 'não'}")
-    print(f"Parc. DAU      : {'SIM' if parc_dau.get('encontrado') else 'não'}")
-    sispar_cats = [o['categoria'] for o in parc_sispar.get('opcoes',[]) if o.get('disponivel')]
-    print(f"Parc. SISPAR   : {'SIM - ' + ', '.join(sispar_cats) if sispar_cats else 'não'}")
-    print(f"SIEFPAR atraso : {federal.get('parcelamento_siefpar') or 'não'}")
-    print(f"Estadual       : {estadual['status']}")
-    print(f"Site Contrib.  : {'SIM - ' + str(site_contrib.get('total_competencias','')) + ' omissões' if site_contrib.get('encontrado') else 'não'}")
-    print(f"Municipal      : {municipal['status']}")
-    print()
-
-    # Honorários: parâmetro opcional na linha de comando
-    honorarios = 0.0
-    if len(sys.argv) >= 5:
-        try:
-            honorarios = float(sys.argv[4].replace(",", "."))
-        except:
-            pass
-
     siefpar = federal.get("parcelamento_siefpar")
 
     dados_template = {
@@ -1917,12 +1894,76 @@ def main():
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
+    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
+
+    resumo = {
+        "empresa": nome, "cnpj": cnpj,
+        "federal_status": federal["status"],
+        "parc_sn": ("SIM (indisponível)" if parc_sn.get("indisponivel") else "SIM") if parc_sn.get("encontrado") else "não",
+        "parc_simplificado": "SIM" if parc_simp.get("encontrado") else "não",
+        "parc_dau": "SIM" if parc_dau.get("encontrado") else "não",
+        "parc_sispar": [o["categoria"] for o in parc_sispar.get("opcoes",[]) if o.get("disponivel")],
+        "siefpar_atraso": federal.get("parcelamento_siefpar"),
+        "estadual_status": estadual["status"],
+        "site_contribuinte_omissoes": site_contrib.get("total_competencias") if site_contrib.get("encontrado") else None,
+        "municipal_status": municipal["status"],
+        "analise_previa_indeferida": analise_previa.get("indeferida", False),
+    }
+
+    return {
+        "nome": nome, "cnpj": cnpj,
+        "classificacao": classificacao,
+        "dados_template": dados_template,
+        "dados_json": dados_json,
+        "resumo": resumo,
+    }
+
+
+def main():
+    if len(sys.argv) < 4:
+        print("Uso: python processar_fiscal.py <pasta_pdfs> <template.docx> <output.docx>")
+        sys.exit(1)
+
+    pasta_pdfs, template, output = sys.argv[1], sys.argv[2], sys.argv[3]
+
+    # Honorários: parâmetro opcional na linha de comando
+    honorarios = 0.0
+    if len(sys.argv) >= 5:
+        try:
+            honorarios = float(sys.argv[4].replace(",", "."))
+        except:
+            pass
+
+    modo = "Modo subpastas detectado." if any(
+        os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"]
+    ) else "Modo pasta única."
+    print(modo)
+
+    r = processar_pasta(pasta_pdfs, honorarios)
+    for arq, tipo in r["classificacao"]:
+        print(f"  {arq} → {tipo}")
+
+    s = r["resumo"]
+    print("\n=== RESUMO ===")
+    print(f"Empresa        : {s['empresa']}")
+    print(f"CNPJ           : {s['cnpj']}")
+    print(f"Federal        : {s['federal_status']}")
+    print(f"Parc. SN       : {s['parc_sn']}")
+    print(f"Parc. Simplif. : {s['parc_simplificado']}")
+    print(f"Parc. DAU      : {s['parc_dau']}")
+    print(f"Parc. SISPAR   : {'SIM - ' + ', '.join(s['parc_sispar']) if s['parc_sispar'] else 'não'}")
+    print(f"SIEFPAR atraso : {s['siefpar_atraso'] or 'não'}")
+    print(f"Estadual       : {s['estadual_status']}")
+    print(f"Site Contrib.  : {'SIM - ' + str(s['site_contribuinte_omissoes']) + ' omissões' if s['site_contribuinte_omissoes'] else 'não'}")
+    print(f"Municipal      : {s['municipal_status']}")
+    print()
+
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
-    preencher_docx(template, output, dados_template)
+    preencher_docx(template, output, r["dados_template"])
 
     json_path = output.replace(".docx","_dados.json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump({"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}, f, ensure_ascii=False, indent=2)
+        json.dump(r["dados_json"], f, ensure_ascii=False, indent=2)
     print(f"JSON exportado: {json_path}")
 
 if __name__ == "__main__":
