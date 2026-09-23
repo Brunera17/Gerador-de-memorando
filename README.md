@@ -8,12 +8,27 @@ O script lê os PDFs de consulta fiscal de uma empresa (federal, estadual e muni
 
 - Python 3
 - [`pdfplumber`](https://github.com/jsvine/pdfplumber)
+- [`streamlit`](https://streamlit.io) (só para a interface web)
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Uso
+## Interface web (sem terminal)
+
+Para quem prefere não usar linha de comando: sobe todos os PDFs juntos (o
+programa classifica sozinho), confere os valores extraídos na tela, ajusta
+os honorários se quiser, e baixa o `.docx` pronto.
+
+```bash
+streamlit run app.py
+```
+
+Abre em `http://localhost:8501`. Por enquanto roda só localmente — cada
+pessoa da equipe precisa rodar o comando na própria máquina (não há
+servidor compartilhado configurado ainda).
+
+## Uso (linha de comando)
 
 ```bash
 python scripts/processar_fiscal.py <pasta_pdfs> <template.docx> <output.docx> [honorarios]
