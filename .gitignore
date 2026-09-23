@@ -231,8 +231,7 @@ __marimo__/
 /output/
 Memorando_*.docx
 *_dados.json
-# Modelos originais com papel timbrado do escritório (usar templates/)
-MODELO_MEMORANDO_n8n.docx
+# Modelos originais com papel timbrado do escritório
 modelo word.docx
 # Segredos e configurações locais
 .env

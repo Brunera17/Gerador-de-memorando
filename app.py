@@ -68,9 +68,6 @@ if not verificar_acesso():
 
 
 # ── Templates disponíveis ────────────────────────────────────────────────
-# Os modelos com o timbrado do escritório ficam na raiz do projeto e NÃO são
-# versionados (contêm a identidade visual do escritório) — o repositório só
-# traz os modelos de templates/, sem timbrado, como ponto de partida.
 # Rótulo claro (o que é + se tem timbrado) em vez do nome cru do arquivo.
 def templates_disponiveis():
     candidatos = [
