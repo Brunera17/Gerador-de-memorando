@@ -1245,7 +1245,8 @@ def blocos_para_xml(blocos):
         elif t == "parc_sn":
             xml.append(wp(before=120, after=40) + wr("*POSSIBILIDADE DE PARCELAMENTO*", bold=True) + "</w:p>")
             xml.append(wp(before=0, after=40) + wr("Parcelamento Simples Nacional") + "</w:p>")
-            xml.append(wp(before=0, after=40) + wr("Valor total parcelado: ") + wr(b.get("valor_total",""), bold=True) + wr(".") + "</w:p>")
+            if not b.get("omitir_total"):
+                xml.append(wp(before=0, after=40) + wr("Valor total parcelado: ") + wr(b.get("valor_total",""), bold=True) + wr(".") + "</w:p>")
             vp = b.get("valor_primeira",""); vd = b.get("valor_demais",""); np_ = b.get("num_parcelas",0)
             if vp and vp != vd:
                 xml.append(wp_bullet(normal="Entrada de ", bold_txt=f"{vp} + {np_-1}x de {vd}."))
@@ -1280,9 +1281,9 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
                     f"débitos abaixo, caso não sejam regularizados."})
         blocos.append({"type":"separator"})
     if federal.get("certidao_numero"):
-        val = (f" (válida até {federal['certidao_validade']})" if federal.get("certidao_validade") else "")
+        val = (f", válida até {federal['certidao_validade']}" if federal.get("certidao_validade") else "")
         rotulo = federal.get("certidao_tipo") or "Certidão Positiva com Efeitos de Negativa"
-        blocos.append({"type":"normal_bold","text":f"{rotulo} nº ","bold": federal["certidao_numero"]+val+"."})
+        blocos.append({"type":"normal_bold","text":f"{rotulo} gerada","bold":f"{val}."})
 
     # Declarações omissas
     if decl_omissas and decl_omissas.get("encontrado"):
@@ -1321,15 +1322,21 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
         por_receita = {}
         for d in federal["debitos"]:
             por_receita.setdefault(d["receita"],[]).append(d)
+        # Quando o Parcelamento do Simples Nacional (PGDAS) cobre a única receita em
+        # aberto, o valor mostrado é o do parcelamento — o que vai ser efetivado —
+        # em vez do saldo devedor bruto do SIEF (confirmado com memorando real).
+        usar_valor_parcelamento_sn = (
+            parc_sn.get("encontrado") and not parc_sn.get("indisponivel") and len(por_receita) == 1
+        )
         for receita, items in por_receita.items():
             periodos = [i["periodo"] for i in items]
             faixa = f"{periodos[0]} a {periodos[-1]}" if len(periodos)>1 else periodos[0]
-            total = sum(i["saldo_devedor"] for i in items)
+            total = parc_sn["valor_total"] if usar_valor_parcelamento_sn else sum(i["saldo_devedor"] for i in items)
             blocos.append({"type":"italic","text":"Referente à guias do imposto do " + receita.rstrip(".") + "."})
             blocos.append({"type":"bullet","normal":f"Referente ao mês {faixa} – ","bold":fmt(total)})
 
         if parc_sn.get("encontrado") and not parc_sn.get("indisponivel"):
-            blocos.append({"type":"parc_sn","valor_total":fmt(parc_sn["valor_total"]),"num_parcelas":parc_sn["num_parcelas"],"valor_primeira":fmt(parc_sn["valor_primeira"]),"valor_demais":fmt(parc_sn["valor_demais"])})
+            blocos.append({"type":"parc_sn","valor_total":fmt(parc_sn["valor_total"]),"num_parcelas":parc_sn["num_parcelas"],"valor_primeira":fmt(parc_sn["valor_primeira"]),"valor_demais":fmt(parc_sn["valor_demais"]),"omitir_total":usar_valor_parcelamento_sn})
         elif parc_sn.get("indisponivel"):
             blocos.append({"type":"date","text":"* Parcelamento via Simples Nacional não disponível para este caso (valores abaixo do mínimo exigido)."})
 
@@ -1709,8 +1716,8 @@ def montar_municipal(municipal, hoje):
         # Certidão Positiva Municipal (Fiorilli)
         if municipal.get("certidao_numero"):
             blocos.append({"type":"normal_bold",
-                "text": "Certidão Positiva Municipal nº ",
-                "bold": municipal["certidao_numero"]})
+                "text": "Certidão Positiva Municipal gerada",
+                "bold": "."})
 
         # Quando existe um levantamento específico dos débitos que entram no
         # parcelamento ("Listagem de Débito"/Formato 4), ele tem prioridade
@@ -1756,6 +1763,8 @@ def montar_municipal(municipal, hoje):
             blocos.append({"type":"italic","text":f"Débitos — {qtd} inscrição(ões) negociável(is)"})
             blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
                 "bold": f"{melhor['num_parcelas']}x de {fmt(melhor['demais'])} — Total: {fmt(municipal.get('total', melhor['demais']*melhor['num_parcelas']))}"})
+        else:
+            blocos.append({"type":"date","text":"*Não há possibilidade de parcelamento*."})
     return blocos_para_xml(blocos)
 
 
