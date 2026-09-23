@@ -49,17 +49,43 @@ def verificar_acesso():
     if st.session_state.get("autenticado"):
         return True
 
-    st.title("📄 Gerador de Memorando")
-    st.caption("Acesso restrito — dados de clientes.")
-    with st.form("login"):
-        senha = st.text_input("Senha de acesso", type="password")
-        entrar = st.form_submit_button("Entrar")
-    if entrar:
-        if senha == st.secrets["senha_acesso"]:
-            st.session_state["autenticado"] = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta.")
+    # Cartão centralizado — largura fixa e margem automática dentro de um
+    # container com key (vira a classe CSS "st-key-login_wrap"), com o
+    # visual do cartão em si (borda, cantos, fundo) vindo do container
+    # nativo do Streamlit (já acompanha o tema claro/escuro sozinho).
+    st.markdown(
+        """
+        <style>
+        div.st-key-login_wrap { max-width: 420px; margin: 9vh auto 0 auto; }
+        div.st-key-login_wrap [data-testid="stForm"] { border: none; padding: 0; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(key="login_wrap"):
+        with st.container(border=True):
+            st.markdown(
+                "<div style='text-align:center; font-size:2.6rem; line-height:1;'>📄</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<h3 style='text-align:center; margin:0.4rem 0 0.1rem;'>Gerador de Memorando</h3>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<p style='text-align:center; opacity:0.65; margin-bottom:1.2rem;'>"
+                "Acesso restrito — dados de clientes.</p>",
+                unsafe_allow_html=True,
+            )
+            with st.form("login", border=False):
+                senha = st.text_input("Senha de acesso", type="password")
+                entrar = st.form_submit_button("Entrar", use_container_width=True)
+            if entrar:
+                if senha == st.secrets["senha_acesso"]:
+                    st.session_state["autenticado"] = True
+                    st.rerun()
+                else:
+                    st.error("Senha incorreta.")
     return False
 
 
