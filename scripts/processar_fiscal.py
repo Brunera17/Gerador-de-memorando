@@ -107,7 +107,10 @@ def classificar_pdf(texto):
             or "certidão positiva do mobiliário" in t
             or "certidao positiva do mobiliario" in t
             or ("prefeitura municipal" in t and "composição da certidão" in t)
-            or ("prefeitura municipal" in t and "composicao da certidao" in t)):
+            or ("prefeitura municipal" in t and "composicao da certidao" in t)
+            or "demonstrativo unificado do contribuinte" in t
+            or "detalhamento dos débitos mobiliários" in t
+            or "detalhamento dos debitos mobiliarios" in t):
         return "municipal"
     return "desconhecido"
 
@@ -140,6 +143,10 @@ def extrair_dados_empresa(textos):
         if not nome:
             m3 = re.search(r'Nome Empresarial[:\s]+([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÀÇ][^\n]{3,70})', texto, re.IGNORECASE)
             if m3: nome = m3.group(1).strip()
+        if not nome:
+            # Rótulo simples "Nome:" (ex.: DUC — Prefeitura de São Paulo)
+            m4 = re.search(r'(?<!Empresarial)\bNome:\s*([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÀÇ][^\n]{3,70})', texto, re.IGNORECASE)
+            if m4: nome = m4.group(1).strip()
         if nome and cnpj: break
     return nome, cnpj
 
@@ -1211,6 +1218,46 @@ def extrair_municipal(texto):
         m_tot_list = re.search(r'Total Geral:\s*[\d.,]+(?:\s+[\d.,]+){5}\s+([\d.,]+)', texto, re.IGNORECASE)
         if m_tot_list:
             r["total_parcelamento"] = float(m_tot_list.group(1).replace(".","").replace(",","."))
+
+    # ── Formato 5: DUC — Demonstrativo Unificado do Contribuinte (Prefeitura
+    # de São Paulo, "Detalhamento dos Débitos Mobiliários"). Uma tabela por
+    # tributo (ISS/TFE/TFA/TRSS) com uma linha por competência; competências
+    # ainda não apuradas aparecem sem os valores (só o código) — essas não
+    # entram como débito. Baseado em um único exemplo real — layout pode
+    # variar em outros casos.
+    tl = texto.lower()
+    if "demonstrativo unificado do contribuinte" in tl or "detalhamento dos débitos mobiliários" in tl or "detalhamento dos debitos mobiliarios" in tl:
+        categorias_duc = [
+            ("ISS - Imposto sobre Serviços de Qualquer Natureza", "ISS"),
+            ("TFE - Taxa de Fiscalização de Estabelecimento", "TFE"),
+            ("TFA - Taxa de Fiscalização de Anúncios", "TFA"),
+            ("TRSS - Taxa de Resíduos Sólidos de Serviços de Saúde", "TRSS"),
+        ]
+        def categoria_duc(pos):
+            melhor_header, melhor_idx = None, -1
+            for header, _sigla in categorias_duc:
+                idx = texto.rfind(header, 0, pos)
+                if idx > melhor_idx:
+                    melhor_idx, melhor_header = idx, header
+            return melhor_header or "Débito Mobiliário"
+
+        padrao_duc = re.compile(
+            r'(\d{2}/\d{4})\s+(\d+)\s+(?:([\d.,]+)\s+([\d.,]+)\s+)?Detalhar')
+        for m in padrao_duc.finditer(texto):
+            competencia, codigo, valor, atualizado = m.groups()
+            if not atualizado:
+                continue  # competência ainda não apurada — sem valor, não é débito
+            r["debitos"].append({
+                "status":  "",
+                "numero":  codigo,
+                "ano":     competencia,
+                "parcela": "",
+                "receita": categoria_duc(m.start()),
+                "valor":   float(valor.replace(".","").replace(",",".")),
+                "a_pagar": float(atualizado.replace(".","").replace(",",".")),
+            })
+        if r["debitos"] and r["total"] == 0.0:
+            r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
 
     if r["debitos"] or r["total"] > 0 or r["total_parcelamento"] > 0:
         r["tem_debitos"] = True
