@@ -59,6 +59,13 @@ def classificar_pdf(texto):
     if "emissão de documento de arrecadação" in t and "negociações:" in t:
         return "parcelamento_pgdau_prestacoes"
     if "parcelas disponíveis para impressão" in t and "parcela" in t and "valor" in t:
+        # A mesma tela do eCAC serve tanto pro parcelamento do MEI quanto pro
+        # PARCSN (Simples Nacional "normal") — "Nome Empresarial:"/"Parcelamento
+        # do Simples Nacional" só aparecem na versão PARCSN (confirmado com um
+        # caso real que NÃO é MEI). Sem esses marcadores, assume MEI (comportamento
+        # original, já validado).
+        if "nome empresarial" in t or "parcelamento do simples nacional" in t:
+            return "parcelamento_pn_emissao"
         return "parcelamento_mei_emissao"
     if "pgmei" in t and "programa gerador de das" in t and "microempreendedor individual" in t:
         return "mei_pgmei"
@@ -66,8 +73,12 @@ def classificar_pdf(texto):
         if "valores dos débitos não são suficientes" in t or "valores dos debitos nao sao suficientes" in t:
             return "parc_sn_indisponivel"
         return "parcelamento_sn"
-    if "valor da primeira parcela" in t or "valor das demais parcelas" in t:
-        return "parcelamento_sn"
+    # Checagens do Parcelamento Simplificado (e-CAC) DEVEM vir antes do
+    # fallback genérico de "valor da primeira/demais parcela(s)" logo abaixo
+    # — o Simplificado também usa esse texto ("Valor das demais parcelas"),
+    # e sem essa ordem o PDF inteiro caía silenciosamente no lugar errado
+    # (extraído por extrair_parcelamento_sn, que não reconhece esse layout
+    # e devolve "não encontrado" — o débito do Simplificado sumia do memorando).
     if "saldo a parcelar" in t and "quantidade de parcelas" in t:
         return "parcelamento_simplificado"
     if "nova negociacao" in t and "divida consolidada" in t:
@@ -78,6 +89,8 @@ def classificar_pdf(texto):
             ("dívida consolidada não atinge" in t or "divida consolidada nao atinge" in t
              or "mínimo necessário para esta modalidade" in t)):
         return "parcelamento_simplificado"
+    if "valor da primeira parcela" in t or "valor das demais parcelas" in t:
+        return "parcelamento_sn"
     if "procuradoria da divida ativa" in t and "estado de sao paulo" in t and "crda" in t:
         return "estadual_pge"
     if "procuradoria da dívida ativa" in t and "estado de são paulo" in t and "crda" in t:
@@ -110,7 +123,9 @@ def classificar_pdf(texto):
             or ("prefeitura municipal" in t and "composicao da certidao" in t)
             or "demonstrativo unificado do contribuinte" in t
             or "detalhamento dos débitos mobiliários" in t
-            or "detalhamento dos debitos mobiliarios" in t):
+            or "detalhamento dos debitos mobiliarios" in t
+            or "composição da guia" in t
+            or "composicao da guia" in t):
         return "municipal"
     return "desconhecido"
 
@@ -498,8 +513,12 @@ def extrair_parcelamento_simplificado(texto):
     r["multa"]         = val(r'Multa\s*\(BRL\)')
     r["juros"]         = val(r'Juros\s*\(BRL\)')
     r["total"]         = val(r'Total\s*\(BRL\)')
-    r["valor_parcela"] = val(r'Valor das parcelas\s*\(BRL\)')
-    m = re.search(r'Quantidade de parcelas[^\d]*(\d+)', texto, re.IGNORECASE)
+    # "demais" opcional: algumas telas rotulam só "Valor das parcelas (BRL)"
+    # / "Quantidade de parcelas", outras "Valor das demais parcelas (BRL)" /
+    # "Quantidade de demais parcelas" (quando há entrada separada) — sem essa
+    # tolerância, o formato com "demais" ficava com 0 parcelas/valor.
+    r["valor_parcela"] = val(r'Valor das (?:demais )?parcelas\s*\(BRL\)')
+    m = re.search(r'Quantidade de (?:demais )?parcelas[^\d]*(\d+)', texto, re.IGNORECASE)
     if m: r["num_parcelas"] = int(m.group(1))
     if r["total"] > 0 or r["num_parcelas"] > 0: r["encontrado"] = True
     return r
@@ -674,6 +693,27 @@ def extrair_mei_emissao_parcela(texto):
     r["quantidade"] = len(valores)
     r["valor_parcela"] = valores[0]  # valor mensal costuma ser uniforme
     r["total"] = round(sum(valores), 2)
+    return r
+
+
+def extrair_parcsn_emissao_parcela(texto):
+    """Extrai as parcelas em atraso a partir da tela "Emissão de Parcela" do
+    eCAC — mesma tela do MEI, mas para o Parcelamento do Simples Nacional
+    "normal" (PARCSN, não MEI). Diferente do MEI, aqui o valor de cada
+    parcela pode variar mês a mês (por isso guarda o período de cada uma,
+    em vez de assumir um valor mensal uniforme).
+    Baseado em um único exemplo real — layout pode variar em outros casos.
+    """
+    r = {"encontrado": False, "parcelas": [], "total": 0.0}
+    if not texto:
+        return r
+    parcelas = [(p, float(v.replace(".", "").replace(",", ".")))
+                for p, v in re.findall(r'(\d{2}/\d{4})\s+R\$\s*([\d.,]+)', texto)]
+    if not parcelas:
+        return r
+    r["encontrado"] = True
+    r["parcelas"] = [{"periodo": p, "valor": v} for p, v in parcelas]
+    r["total"] = round(sum(v for _, v in parcelas), 2)
     return r
 
 
@@ -1259,6 +1299,58 @@ def extrair_municipal(texto):
         if r["debitos"] and r["total"] == 0.0:
             r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
 
+    # ── Formato 6: Documento de Arrecadação / guia consolidada (ex.:
+    # Prefeitura Municipal de Itaí) — já é a guia pronta pra pagamento, com
+    # uma linha por dívida/parcela: Mód Cadastro Receita Dívida Par Ano
+    # Vencimento Valor Desconto Correção Multa Juros Total. Quando o nome da
+    # receita quebra em duas linhas (ex.: "TAXA LICENÇA P/\nFUNCIONAMENTO"), o
+    # PDF original tem sobreposição de camadas de texto bem nesse ponto (mesmo
+    # problema já visto em outros PDFs deste escritório) e o nome sai
+    # embaralhado ("FTUAXNAC ILOICNEANMÇEAN TPO/") — os números continuam
+    # corretos. Por isso: 1ª passada captura as linhas "limpas" (numa linha só)
+    # e guarda o nome da receita por código de dívida; 2ª passada pega as
+    # linhas com o nome embaralhado (reconhecidas pela estrutura — código,
+    # linha solta, linha de números) e usa o nome já visto de outra parcela
+    # da mesma dívida, já que a mesma dívida tem sempre o mesmo nome de receita.
+    if "composição da guia" in tl or "composicao da guia" in tl:
+        padrao_dam_num = (
+            r'\.?(\d+)\s+\.?(\d+)\s+(\d{4})\s+(\d{2}/\d{2}/\d{4})\s+'
+            r'([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)')
+        padrao_dam_limpo = re.compile(
+            r'\d\s+\d+\s+([A-ZÁÉÍÓÚÇÃÕÂÊÎÔÛ][A-ZÁÉÍÓÚÇÃÕÂÊÎÔÛ/ ]+?)[ ]+' + padrao_dam_num)
+        padrao_dam_embaralhado = re.compile(r'\d\s+\d+\s*\n[^\n]+\n' + padrao_dam_num)
+
+        receita_por_codigo = {}
+        linhas_dam = []
+        for m in padrao_dam_limpo.finditer(texto):
+            (receita, codigo_divida, parcela, ano, _venc,
+             valor, _desconto, _correcao, _multa, _juros, total_linha) = m.groups()
+            receita = re.sub(r'\s+', ' ', receita).strip()
+            if receita.rstrip("/ ").endswith("LICENÇA P"):
+                receita = "TAXA LICENÇA P/ FUNCIONAMENTO"
+            receita_por_codigo.setdefault(codigo_divida, receita)
+            linhas_dam.append((receita, codigo_divida, parcela, ano, valor, total_linha))
+        for m in padrao_dam_embaralhado.finditer(texto):
+            (codigo_divida, parcela, ano, _venc,
+             valor, _desconto, _correcao, _multa, _juros, total_linha) = m.groups()
+            receita = receita_por_codigo.get(codigo_divida, "Débito Mobiliário")
+            linhas_dam.append((receita, codigo_divida, parcela, ano, valor, total_linha))
+
+        linhas_dam.sort(key=lambda linha: (linha[1], int(linha[2])))
+        for receita, codigo_divida, parcela, ano, valor, total_linha in linhas_dam:
+            r["debitos"].append({
+                "status":  "",
+                "numero":  codigo_divida,
+                "ano":     ano,
+                "parcela": parcela,
+                "receita": receita,
+                "valor":   float(valor.replace(".","").replace(",",".")),
+                "a_pagar": float(total_linha.replace(".","").replace(",",".")),
+            })
+        m_tot_dam = re.search(r'Total:\s+[\d.,]+(?:\s+[\d.,]+){4}\s+([\d.,]+)', texto, re.IGNORECASE)
+        if m_tot_dam and r["total"] == 0.0:
+            r["total"] = float(m_tot_dam.group(1).replace(".","").replace(",","."))
+
     if r["debitos"] or r["total"] > 0 or r["total_parcelamento"] > 0:
         r["tem_debitos"] = True
         r["status"]      = "COM_DEBITOS"
@@ -1385,7 +1477,7 @@ def blocos_para_xml(blocos):
 # ══════════════════════════════════════════════════════════
 
 def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas,
-                    pgdau_prest=None, mei_emissao=None, analise_previa=None, pgmei=None):
+                    pgdau_prest=None, mei_emissao=None, analise_previa=None, pgmei=None, parcsn_emissao=None):
     blocos = []
     # Alerta de indeferimento do Simples Nacional (Relatório de Análise Prévia) —
     # vem primeiro por ser a informação mais urgente do memorando quando presente.
@@ -1421,7 +1513,8 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     tem_mei_atraso = mei_emissao and mei_emissao.get("encontrado")
     tem_dau_atraso = pgdau_prest and pgdau_prest.get("encontrado") and pgdau_prest.get("valor_parcela_atual", 0) > 0
     tem_pgmei_atraso = pgmei and pgmei.get("encontrado") and pgmei.get("meses_em_atraso")
-    if tem_mei_atraso or tem_dau_atraso or tem_pgmei_atraso:
+    tem_parcsn_atraso = parcsn_emissao and parcsn_emissao.get("encontrado")
+    if tem_mei_atraso or tem_dau_atraso or tem_pgmei_atraso or tem_parcsn_atraso:
         blocos.append({"type":"label","text":"Débitos:"})
         if tem_mei_atraso:
             blocos.append({"type":"bullet",
@@ -1441,6 +1534,15 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             blocos.append({"type":"bullet",
                 "normal": f"DAS MEI EM ATRASO – {faixa} ({qtd} {plural(qtd, 'guia', 'guias')}) totalizando ",
                 "bold": fmt(pgmei['total_atraso']) + "."})
+        if tem_parcsn_atraso:
+            # Valor por parcela não é uniforme (diferente do MEI) — lista os
+            # períodos em vez de dizer "N parcelas de R$X", que seria falso
+            # quando os valores variam mês a mês.
+            periodos = ", ".join(p["periodo"] for p in parcsn_emissao["parcelas"])
+            qtd = len(parcsn_emissao["parcelas"])
+            blocos.append({"type":"bullet",
+                "normal": f"PARCELAMENTO SIMPLES NACIONAL EM ATRASO – {qtd} {plural(qtd, 'parcela', 'parcelas')} ({periodos}) totalizando ",
+                "bold": fmt(parcsn_emissao['total']) + "."})
 
     # Anos do MEI ainda não liberados no PGMEI (dependem da entrega da DASN
     # do ano exibido) — não dá pra saber o valor exato (falta multa/juros,
@@ -2101,7 +2203,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     nenhum arquivo. Usado pelo main() (CLI) e pela interface web, para que
     os dois caminhos rodem exatamente a mesma lógica de extração.
     """
-    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","analise_previa_sn","mei_pgmei"}
+    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","parcelamento_pn_emissao","analise_previa_sn","mei_pgmei"}
     textos = {}
     classificacao = []  # [(nome_exibido, tipo), ...] — para revisão antes de gerar
 
@@ -2142,6 +2244,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     pgdau_prest = extrair_pgdau_prestacoes(get("parcelamento_pgdau_prestacoes"))
     analise_previa = extrair_analise_previa_sn(get("analise_previa_sn"))
     mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
+    parcsn_emissao = extrair_parcsn_emissao_parcela(get("parcelamento_pn_emissao"))
     pgmei       = extrair_pgmei(get("mei_pgmei"))
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
@@ -2156,14 +2259,14 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "NOME_EMPRESA":             nome or "EMPRESA NÃO IDENTIFICADA",
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
-        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa, pgmei),
+        "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa, pgmei, parcsn_emissao),
         "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
-    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
+    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
 
     resumo = {
         "empresa": nome, "cnpj": cnpj,
