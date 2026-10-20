@@ -40,6 +40,18 @@ def classificar_pdf(texto):
             or "diagnostico fiscal na receita federal" in t
             or "diagnóstico fiscal na receita federal" in t):
         return "federal"
+    # Certidões avulsas cujo título quebra linha no PDF — comparar com
+    # espaços normalizados.
+    tn = re.sub(r'\s+', ' ', t)
+    if "certificado de regularidade do fgts" in tn:
+        return "fgts_crf"
+    if "banco nacional de devedores trabalhistas" in tn:
+        return "cndt"
+    # CND unificada SEFAZ + PGE-SP (Resolução Conjunta SFP/PGE nº 1/2026) —
+    # substitui a CND da SEFAZ e a CRDA da PGE num documento só.
+    if ("débitos relativos aos tributos estaduais e à dívida ativa" in tn
+            or "debitos relativos aos tributos estaduais e a divida ativa" in tn):
+        return "estadual_cnd_sp"
     if "vamos negociar" in t and "suas dívidas" in t:
         return "regularize_valores"
     if ("vamos simular" in t and "sispar" in t) or             ("vamos simular" in t and "opções de negociação" in t and              ("previdenciário" in t or "simples nacional" in t or "demais débitos" in t)):
@@ -119,6 +131,8 @@ def classificar_pdf(texto):
             or "consulta de debitos" in t or "consulta de débitos" in t
             or "certidão positiva do mobiliário" in t
             or "certidao positiva do mobiliario" in t
+            or "certidão negativa de débitos mobiliários" in t
+            or "certidao negativa de debitos mobiliarios" in t
             or ("prefeitura municipal" in t and "composição da certidão" in t)
             or ("prefeitura municipal" in t and "composicao da certidao" in t)
             or "demonstrativo unificado do contribuinte" in t
@@ -1031,7 +1045,7 @@ def extrair_site_contribuinte(texto):
     return r
 
 
-def extrair_estadual(texto_pge, texto_sefaz):
+def extrair_estadual(texto_pge, texto_sefaz, texto_cnd_sp=""):
     r = {"status":"NEGATIVA","certidaos":[],"tem_debitos":False}
     def dv(emi, dias):
         try:
@@ -1060,6 +1074,45 @@ def extrair_estadual(texto_pge, texto_sefaz):
         neg = "não constam débitos" in texto_sefaz.lower() or "nao constam debitos" in texto_sefaz.lower()
         r["certidaos"].append({"orgao":"SEFAZ-SP","numero":num,"emissao":emi,"validade":dm(emi,6),"resultado":"NEGATIVA" if neg else "POSITIVA"})
         if not neg: r["tem_debitos"] = True; r["status"] = "COM_DEBITOS"
+    if texto_cnd_sp:
+        tl = re.sub(r'\s+', ' ', texto_cnd_sp.lower())
+        mn = re.search(r'Certid[aã]o n[oº°]\.?\s+([A-Z0-9]+)', texto_cnd_sp, re.IGNORECASE)
+        me = re.search(r'Data e hora da emiss[aã]o\s+(\d{2}/\d{2}/\d{4})', texto_cnd_sp, re.IGNORECASE)
+        mv = re.search(r'Validade\s+(\d+)\s*dias', texto_cnd_sp, re.IGNORECASE)
+        num = mn.group(1) if mn else ""; emi = me.group(1) if me else ""
+        dias = int(mv.group(1)) if mv else 90
+        neg = "certidão negativa" in tl or "certidao negativa" in tl or "não constam pendências" in tl
+        r["certidaos"].append({"orgao":"SEFAZ/PGE-SP","numero":num,"emissao":emi,"validade":dv(emi,dias),"resultado":"NEGATIVA" if neg else "POSITIVA"})
+        if not neg: r["tem_debitos"] = True; r["status"] = "COM_DEBITOS"
+    return r
+
+
+def extrair_fgts(texto):
+    """Certificado de Regularidade do FGTS (CRF — Caixa)."""
+    r = {"encontrado":False,"regular":False,"numero":"","validade":""}
+    if not texto: return r
+    r["encontrado"] = True
+    tl = re.sub(r'\s+', ' ', texto.lower())
+    r["regular"] = "situação regular" in tl or "situacao regular" in tl
+    m = re.search(r'Certifica[çc][aã]o N[úu]mero:\s*(\d+)', texto, re.IGNORECASE)
+    if m: r["numero"] = m.group(1)
+    m = re.search(r'Validade:\s*\d{2}/\d{2}/\d{4}\s*a\s*(\d{2}/\d{2}/\d{4})', texto, re.IGNORECASE)
+    if m: r["validade"] = m.group(1)
+    return r
+
+
+def extrair_cndt(texto):
+    """Certidão de Débitos Trabalhistas (CNDT — TST/BNDT)."""
+    r = {"encontrado":False,"negativa":False,"numero":"","validade":""}
+    if not texto: return r
+    r["encontrado"] = True
+    tl = re.sub(r'\s+', ' ', texto.lower())
+    r["negativa"] = ("certidão negativa de débitos trabalhistas" in tl
+                     or "certidao negativa de debitos trabalhistas" in tl)
+    m = re.search(r'Certid[aã]o n[oº°]:\s*([\d/]+)', texto, re.IGNORECASE)
+    if m: r["numero"] = m.group(1)
+    m = re.search(r'Validade:\s*(\d{2}/\d{2}/\d{4})', texto, re.IGNORECASE)
+    if m: r["validade"] = m.group(1)
     return r
 
 
@@ -1700,6 +1753,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
         blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
     else:
         blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
+
     return blocos_para_xml(blocos)
 
 
@@ -1714,7 +1768,7 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None
         blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
         for c in estadual.get("certidaos",[]):
             orgao = c.get("orgao",""); num = c.get("numero",""); val = c.get("validade","")
-            prefix = "CRDA" if "PGE" in orgao else "CND"
+            prefix = "CRDA" if orgao == "PGE-SP" else "CND"
             val_txt = f" — válida até {val}" if val else ""
             blocos.append({"type":"normal_bold","text":f"{prefix} nº ","bold":f"{num} ({orgao}){val_txt}: Sem débitos."})
     else:
@@ -2014,6 +2068,35 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
         partes_fed.append(f"{fmt(multas_total)} (com possibilidade de redução)")
         total_fed += multas_total
 
+    # Débitos exigíveis do SIEF (guias em aberto). Os que já estão em
+    # parcelamento ativo vêm como "exigibilidade suspensa" e não entram. Guia
+    # fora de parcelamento entra com o saldo cheio; quando há simulação de
+    # parcelamento cobrindo as guias, entra só a 1ª parcela (regra do escritório):
+    #   - Parcelamento Simplificado (e-CAC): cobre todas as guias do SIEF;
+    #   - Parcelamento do Simples Nacional: cobre só as guias do Simples.
+    debitos_sief = federal.get("debitos", []) if federal else []
+    if debitos_sief:
+        simp_ok = bool(parc_simp and parc_simp.get("encontrado") and not parc_simp.get("indisponivel"))
+        sn_ok = bool(parc_sn and parc_sn.get("encontrado") and not parc_sn.get("indisponivel"))
+        if simp_ok:
+            sem_parcelamento = []
+            primeira = parc_simp.get("valor_parcela", 0.0)
+            if primeira > 0:
+                partes_fed.append(f"{fmt(primeira)} (1ª parcela do Parcelamento Simplificado)")
+                total_fed += primeira
+        elif sn_ok:
+            sem_parcelamento = [d for d in debitos_sief if "SIMPLES" not in d["receita"].upper()]
+            primeira = parc_sn.get("valor_primeira") or parc_sn.get("valor_demais", 0.0)
+            if primeira > 0 and len(sem_parcelamento) < len(debitos_sief):
+                partes_fed.append(f"{fmt(primeira)} (1ª parcela do Parcelamento do Simples)")
+                total_fed += primeira
+        else:
+            sem_parcelamento = debitos_sief
+        total_aberto = sum(d["saldo_devedor"] for d in sem_parcelamento)
+        if total_aberto > 0:
+            partes_fed.append(fmt(total_aberto))
+            total_fed += total_aberto
+
     # SIEFPAR
     if parc_siefpar:
         saldo_atraso = parc_siefpar.get("valor_em_atraso", 0.0)
@@ -2074,6 +2157,41 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
         "bold": fmt(total_geral) + obs})
 
     return blocos_para_xml(blocos)
+
+
+# Título e linha divisória de seção copiados do modelo ("Âmbito Estadual" etc.),
+# para as seções que só existem quando a certidão foi enviada.
+_XML_TITULO_SECAO = ('<w:p><w:pPr><w:spacing w:afterLines="120" w:after="288" w:line="360" w:lineRule="auto"/></w:pPr>'
+                     '<w:r><w:rPr><w:b/><w:bCs/><w:color w:val="1F3864"/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr>'
+                     '<w:t>{}</w:t></w:r></w:p>')
+_XML_DIVISOR_SECAO = ('<w:p><w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="1" w:color="auto"/></w:pBdr>'
+                      '<w:spacing w:afterLines="120" w:after="288" w:line="360" w:lineRule="auto"/></w:pPr></w:p>')
+
+
+def montar_certidoes_extras(fgts, cndt):
+    """Seções "Âmbito Trabalhista" (CNDT) e "FGTS" (CRF), cada uma só quando o
+    PDF correspondente foi enviado. Vazio quando nenhuma das duas veio."""
+    xml = []
+    if cndt and cndt.get("encontrado"):
+        num = f" nº {cndt['numero']}" if cndt.get("numero") else ""
+        val = f" — válida até {cndt['validade']}" if cndt.get("validade") else ""
+        if cndt.get("negativa"):
+            blocos = [{"type":"normal","text":"Sem débitos. CNDT gerada."},
+                      {"type":"normal_bold","text":f"CNDT{num} ","bold":f"(TST){val}: Sem débitos."}]
+        else:
+            blocos = [{"type":"alerta","text":"Certidão POSITIVA — empresa consta no Banco Nacional de Devedores Trabalhistas. Verificar."},
+                      {"type":"normal_bold","text":f"CNDT{num} ","bold":f"(TST){val}."}]
+        xml += [_XML_TITULO_SECAO.format("Âmbito Trabalhista"), blocos_para_xml(blocos), _XML_DIVISOR_SECAO]
+    if fgts and fgts.get("encontrado"):
+        num = f" nº {fgts['numero']}" if fgts.get("numero") else ""
+        val = f" — válido até {fgts['validade']}" if fgts.get("validade") else ""
+        if fgts.get("regular"):
+            blocos = [{"type":"normal","text":"Situação regular. CRF gerado."},
+                      {"type":"normal_bold","text":f"CRF{num} ","bold":f"(Caixa){val}: Regular."}]
+        else:
+            blocos = [{"type":"alerta","text":"Empresa em situação IRREGULAR perante o FGTS. Verificar."}]
+        xml += [_XML_TITULO_SECAO.format("FGTS"), blocos_para_xml(blocos), _XML_DIVISOR_SECAO]
+    return "".join(xml)
 
 
 def montar_municipal(municipal, hoje):
@@ -2158,6 +2276,16 @@ def substituir_placeholder_xml(xml, placeholder, valor):
     tag = "{{" + placeholder + "}}"
     if tag not in xml: return xml
     vs = str(valor)
+    if not vs.strip():
+        # Seção opcional sem conteúdo: some com o parágrafo do placeholder
+        # em vez de deixar uma linha em branco no documento.
+        def rp_vazio(m):
+            p = m.group(0)
+            if tag in p and "".join(re.findall(r'<w:t[^>]*>([^<]*)</w:t>', p)).strip() == tag:
+                return ""
+            return p
+        xml = re.sub(r'<w:p[ >].*?</w:p>', rp_vazio, xml, flags=re.DOTALL)
+        return xml.replace(tag, "")
     if vs.strip().startswith("<w:p"):
         def rp(m):
             return vs if tag in m.group(0) else m.group(0)
@@ -2203,14 +2331,14 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     nenhum arquivo. Usado pelo main() (CLI) e pela interface web, para que
     os dois caminhos rodem exatamente a mesma lógica de extração.
     """
-    TIPOS_FEDERAL = {"federal","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","parcelamento_pn_emissao","analise_previa_sn","mei_pgmei"}
+    TIPOS_FEDERAL = {"federal","fgts_crf","cndt","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","parcelamento_pn_emissao","analise_previa_sn","mei_pgmei"}
     textos = {}
     classificacao = []  # [(nome_exibido, tipo), ...] — para revisão antes de gerar
 
     tem_sub = any(os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"])
 
     if tem_sub:
-        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
+        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_cnd_sp","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
         for sub, tipos_validos in mapa.items():
             caminho_sub = os.path.join(pasta_pdfs, sub)
             if not os.path.isdir(caminho_sub): continue
@@ -2246,7 +2374,9 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
     parcsn_emissao = extrair_parcsn_emissao_parcela(get("parcelamento_pn_emissao"))
     pgmei       = extrair_pgmei(get("mei_pgmei"))
-    estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"))
+    estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"), get("estadual_cnd_sp"))
+    fgts        = extrair_fgts(get("fgts_crf"))
+    cndt        = extrair_cndt(get("cndt"))
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
     icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
     ipva        = extrair_ipva(get("estadual_ipva"))
@@ -2262,11 +2392,12 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa, pgmei, parcsn_emissao),
         "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
+        "CERTIDOES_EXTRAS":         montar_certidoes_extras(fgts, cndt),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
-    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
+    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"fgts":fgts,"cndt":cndt,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
 
     resumo = {
         "empresa": nome, "cnpj": cnpj,
