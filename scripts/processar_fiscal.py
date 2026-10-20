@@ -289,7 +289,11 @@ def extrair_federal(texto):
             # (ex.: 1082-01 e 1099-01 CP-SEGUR) — com o nome agrupado o
             # segundo era descartado aqui e voltava pela segunda passagem
             # com o mês trocado pelo do vencimento.
-            chave = f"{rec_raw}_{per}"
+            # Código "XXXX-XX" quando existe; senão o texto com espaços
+            # normalizados — variação de espaçamento não vira guia nova.
+            m_cod = re.match(r'\s*(\d{4}-\d{2})\b', rec_raw)
+            cod = m_cod.group(1) if m_cod else re.sub(r'\s+', ' ', rec_raw).upper()
+            chave = f"{cod}_{re.sub(r'\s+', ' ', per)}"
             if chave not in vistos and saldo_cons > 0:
                 vistos.add(chave)
                 items.append({"receita":rec,"receita_original":rec_raw,
