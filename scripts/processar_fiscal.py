@@ -133,6 +133,9 @@ def classificar_pdf(texto):
             or "certidao positiva do mobiliario" in t
             or "certidão negativa de débitos mobiliários" in t
             or "certidao negativa de debitos mobiliarios" in t
+            or "certidão negativa do cadastro mobiliário" in t
+            or "certidao negativa do cadastro mobiliario" in t
+            or "quite com os cofres municipais" in t
             or ("prefeitura municipal" in t and "composição da certidão" in t)
             or ("prefeitura municipal" in t and "composicao da certidao" in t)
             or "demonstrativo unificado do contribuinte" in t
