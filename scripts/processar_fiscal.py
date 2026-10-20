@@ -93,6 +93,12 @@ def classificar_pdf(texto):
     # e devolve "não encontrado" — o débito do Simplificado sumia do memorando).
     if "saldo a parcelar" in t and "quantidade de parcelas" in t:
         return "parcelamento_simplificado"
+    # Variante com entrada separada: "Quantidade de parcela(s) de entrada" /
+    # "Quantidade de demais parcelas" — sem "Quantidade de parcelas" nem
+    # "Dívida consolidada", caía no fallback do Simples Nacional abaixo.
+    if "saldo a parcelar" in t and ("quantidade de demais parcelas" in t
+                                    or "parcela(s) de entrada" in t):
+        return "parcelamento_simplificado"
     if "nova negociacao" in t and "divida consolidada" in t:
         return "parcelamento_simplificado"
     if "nova negociação" in t and "dívida consolidada" in t:
@@ -133,6 +139,9 @@ def classificar_pdf(texto):
             or "certidao positiva do mobiliario" in t
             or "certidão negativa de débitos mobiliários" in t
             or "certidao negativa de debitos mobiliarios" in t
+            or "certidão negativa do cadastro mobiliário" in t
+            or "certidao negativa do cadastro mobiliario" in t
+            or "quite com os cofres municipais" in t
             or ("prefeitura municipal" in t and "composição da certidão" in t)
             or ("prefeitura municipal" in t and "composicao da certidao" in t)
             or "demonstrativo unificado do contribuinte" in t
@@ -275,7 +284,16 @@ def extrair_federal(texto):
                 saldo_cons = float(m.group(8).replace(".","").replace(",","."))
             except (IndexError, AttributeError):
                 saldo_cons = float(m.group(5).replace(".","").replace(",","."))
-            chave = f"{rec}_{per}"
+            # Chave com o código completo da receita (rec_raw), não o nome
+            # agrupado: o mesmo mês pode ter dois códigos do mesmo tributo
+            # (ex.: 1082-01 e 1099-01 CP-SEGUR) — com o nome agrupado o
+            # segundo era descartado aqui e voltava pela segunda passagem
+            # com o mês trocado pelo do vencimento.
+            # Código "XXXX-XX" quando existe; senão o texto com espaços
+            # normalizados — variação de espaçamento não vira guia nova.
+            m_cod = re.match(r'\s*(\d{4}-\d{2})\b', rec_raw)
+            cod = m_cod.group(1) if m_cod else re.sub(r'\s+', ' ', rec_raw).upper()
+            chave = f"{cod}_{re.sub(r'\s+', ' ', per)}"
             if chave not in vistos and saldo_cons > 0:
                 vistos.add(chave)
                 items.append({"receita":rec,"receita_original":rec_raw,
@@ -512,7 +530,8 @@ def extrair_parcelamento_sn(texto):
 def extrair_parcelamento_simplificado(texto):
     r = {"tipo":"simplificado","encontrado":False,"indisponivel":False,
          "principal":0.0,"multa":0.0,
-         "juros":0.0,"total":0.0,"num_parcelas":0,"valor_parcela":0.0}
+         "juros":0.0,"total":0.0,"num_parcelas":0,"valor_parcela":0.0,
+         "num_entrada":0,"valor_entrada":0.0}
     if not texto: return r
     if ("dívida consolidada não atinge" in texto.lower()
             or "divida consolidada nao atinge" in texto.lower()
@@ -534,6 +553,12 @@ def extrair_parcelamento_simplificado(texto):
     r["valor_parcela"] = val(r'Valor das (?:demais )?parcelas\s*\(BRL\)')
     m = re.search(r'Quantidade de (?:demais )?parcelas[^\d]*(\d+)', texto, re.IGNORECASE)
     if m: r["num_parcelas"] = int(m.group(1))
+    # Entrada separada (ex.: 20% do total): "Quantidade de parcela(s) de
+    # entrada 1" / "Valor das parcelas de entrada (BRL) 548,42".
+    m = re.search(r'Quantidade de parcela\(s\) de entrada\s*(\d+)', texto, re.IGNORECASE)
+    if m:
+        r["num_entrada"]   = int(m.group(1))
+        r["valor_entrada"] = val(r'Valor das parcelas de entrada\s*\(BRL\)') or val(r'Valor da entrada\s*\(BRL\)')
     if r["total"] > 0 or r["num_parcelas"] > 0: r["encontrado"] = True
     return r
 
@@ -1515,9 +1540,14 @@ def blocos_para_xml(blocos):
         elif t == "parc_simp":
             xml.append(wp(before=120, after=40) + wr("*POSSIBILIDADE DE PARCELAMENTO*", bold=True) + "</w:p>")
             xml.append(wp(before=0, after=40) + wr("Parcelamento Simplificado (e-CAC)") + "</w:p>")
-            xml.append(wp(before=0, after=40) + wr(f'Principal: {b.get("principal","")} | Multa: {b.get("multa","")} | Juros: {b.get("juros","")}') + "</w:p>")
+            if b.get("mostrar_composicao", True):
+                xml.append(wp(before=0, after=40) + wr(f'Principal: {b.get("principal","")} | Multa: {b.get("multa","")} | Juros: {b.get("juros","")}') + "</w:p>")
             xml.append(wp(before=0, after=40) + wr("Valor total parcelado: ") + wr(b.get("total",""), bold=True) + wr(".") + "</w:p>")
-            xml.append(wp_bullet(normal="", bold_txt=f'{b.get("num_parcelas","")}x de {b.get("valor_parcela","")}.'  ))
+            if b.get("num_entrada"):
+                ent = f'{b["valor_entrada"]}' if b["num_entrada"] == 1 else f'{b["num_entrada"]}x de {b["valor_entrada"]}'
+                xml.append(wp_bullet(normal="Entrada de ", bold_txt=f'{ent} + {b.get("num_parcelas","")}x de {b.get("valor_parcela","")}.'))
+            else:
+                xml.append(wp_bullet(normal="", bold_txt=f'{b.get("num_parcelas","")}x de {b.get("valor_parcela","")}.'  ))
         elif t == "parc_siefpar":
             atraso = b.get("parcelas_em_atraso", 0)
             xml.append(wp(before=100, after=40) + wr("Parcelamento em andamento — nº ", bold=True) + wr(b.get("numero",""), bold=True) + "</w:p>")
@@ -1528,6 +1558,16 @@ def blocos_para_xml(blocos):
 # ══════════════════════════════════════════════════════════
 # 4. MONTAGEM DOS TEXTOS
 # ══════════════════════════════════════════════════════════
+
+def _ordem_periodo(per):
+    """Chave cronológica para PA do SIEF: "MM/AAAA", "AAAA" ou "Nº TRIM/AAAA"."""
+    m = re.search(r'(\d{4})$', per)
+    ano = int(m.group(1)) if m else 0
+    m = re.match(r'(\d{1,2})', per)
+    sub = int(m.group(1)) if m and "/" in per else 0
+    if "TRIM" in per.upper(): sub = sub * 3
+    return (ano, sub)
+
 
 def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas,
                     pgdau_prest=None, mei_emissao=None, analise_previa=None, pgmei=None, parcsn_emissao=None):
@@ -1621,7 +1661,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             parc_sn.get("encontrado") and not parc_sn.get("indisponivel") and len(por_receita) == 1
         )
         for receita, items in por_receita.items():
-            periodos = [i["periodo"] for i in items]
+            periodos = sorted({i["periodo"] for i in items}, key=_ordem_periodo)
             faixa = f"{periodos[0]} a {periodos[-1]}" if len(periodos)>1 else periodos[0]
             total = parc_sn["valor_total"] if usar_valor_parcelamento_sn else sum(i["saldo_devedor"] for i in items)
             blocos.append({"type":"italic","text":"Referente à guias do imposto do " + receita.rstrip(".") + "."})
@@ -1633,7 +1673,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             blocos.append({"type":"date","text":"* Parcelamento via Simples Nacional não disponível para este caso (valores abaixo do mínimo exigido)."})
 
         if parc_simp.get("encontrado") and not parc_simp.get("indisponivel"):
-            blocos.append({"type":"parc_simp","principal":fmt(parc_simp["principal"]),"multa":fmt(parc_simp["multa"]),"juros":fmt(parc_simp["juros"]),"total":fmt(parc_simp["total"]),"num_parcelas":parc_simp["num_parcelas"],"valor_parcela":fmt(parc_simp["valor_parcela"])})
+            blocos.append({"type":"parc_simp","principal":fmt(parc_simp["principal"]),"multa":fmt(parc_simp["multa"]),"juros":fmt(parc_simp["juros"]),"total":fmt(parc_simp["total"]),"num_parcelas":parc_simp["num_parcelas"],"valor_parcela":fmt(parc_simp["valor_parcela"]),"num_entrada":parc_simp.get("num_entrada",0),"valor_entrada":fmt(parc_simp.get("valor_entrada",0.0)),"mostrar_composicao":(parc_simp["principal"]+parc_simp["multa"]+parc_simp["juros"])>0})
         elif parc_simp.get("indisponivel"):
             blocos.append({"type":"date","text":"* Parcelamento Simplificado indisponível (dívida abaixo do mínimo necessário)."})
 
@@ -2080,7 +2120,7 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
         sn_ok = bool(parc_sn and parc_sn.get("encontrado") and not parc_sn.get("indisponivel"))
         if simp_ok:
             sem_parcelamento = []
-            primeira = parc_simp.get("valor_parcela", 0.0)
+            primeira = parc_simp.get("valor_entrada") or parc_simp.get("valor_parcela", 0.0)
             if primeira > 0:
                 partes_fed.append(f"{fmt(primeira)} (1ª parcela do Parcelamento Simplificado)")
                 total_fed += primeira
