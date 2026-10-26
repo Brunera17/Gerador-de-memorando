@@ -118,6 +118,12 @@ def classificar_pdf(texto):
         return "estadual_pge"
     if "procuradoria da dívida ativa" in t and "estado de são paulo" in t and "crda" in t:
         return "estadual_pge"
+    # "Situação do Contribuinte" do Sistema ICMS - Conta Fiscal (SEFAZ-SP):
+    # parcelamentos, débitos não inscritos e ocorrências nas declarações.
+    if ("sistema icms - conta fiscal" in t
+            or ("situação do contribuinte" in t and "ocorrências nas declarações" in t)
+            or ("situacao do contribuinte" in t and "ocorrencias nas declaracoes" in t)):
+        return "estadual_situacao_contribuinte"
     # Site do Contribuinte DEVE vir antes da SEFAZ — o PDF tem rodapé da SEFAZ
     if ("relatório de pendências fiscais" in t
             or "relatorio de pendencias fiscais" in t
@@ -1116,6 +1122,46 @@ def extrair_site_contribuinte(texto):
     return r
 
 
+def extrair_situacao_contribuinte(texto):
+    """"Situação do Contribuinte" (Sistema ICMS - Conta Fiscal, SEFAZ-SP):
+    lê a tabela "Ocorrências nas Declarações" (Referência / Documento /
+    Observações — a observação pode continuar nas linhas seguintes) e os
+    avisos de parcelamento e de débitos não inscritos.
+    Baseado em um único exemplo real — layout pode variar."""
+    r = {"encontrado": False, "ocorrencias": [], "tem_parcelamento": None, "tem_debitos_nao_inscritos": None}
+    if not texto:
+        return r
+    r["encontrado"] = True
+    tl = texto.lower()
+    if "não existem parcelamentos" in tl or "nao existem parcelamentos" in tl:
+        r["tem_parcelamento"] = False
+    if "não há débitos não inscritos" in tl or "nao ha debitos nao inscritos" in tl:
+        r["tem_debitos_nao_inscritos"] = False
+    i = max(texto.find("Ocorrências nas Declarações"), texto.find("Ocorrencias nas Declaracoes"))
+    if i < 0:
+        return r
+    trecho = texto[i:]
+    fim = re.search(r'\n\s*Data da consulta', trecho)
+    if fim: trecho = trecho[:fim.start()]
+    atual = None
+    for linha in trecho.split("\n")[1:]:
+        linha = linha.strip()
+        m = re.match(r'(\d{2}/\d{4})\s+(GIA/EFD|EFD|GIA)\s+(.*)$', linha)
+        if m:
+            atual = {"referencia": m.group(1), "documento": m.group(2), "observacao": m.group(3).strip()}
+            r["ocorrencias"].append(atual)
+        elif atual and linha and not linha.lower().startswith(("referência", "referencia", "secretaria da fazenda")):
+            atual["observacao"] += " " + linha
+    for o in r["ocorrencias"]:
+        obs = re.sub(r'\s+', ' ', o["observacao"])
+        m = re.search(r'prazo de apresenta[çc][ãa]o:\s*(\d{2}/\d{2}/\d{4})', obs, re.IGNORECASE)
+        o["prazo"] = m.group(1) if m else ""
+        # Resumo curto da observação: só até o primeiro parêntese/ponto
+        # ("Não apresentou GIA/EFD ( Data prazo ... )" → "Não apresentou GIA/EFD").
+        o["resumo"] = re.split(r'\s*[(.]', obs, maxsplit=1)[0].strip()
+    return r
+
+
 def extrair_estadual(texto_pge, texto_sefaz, texto_cnd_sp=""):
     r = {"status":"NEGATIVA","certidaos":[],"tem_debitos":False}
     def dv(emi, dias):
@@ -1903,7 +1949,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     return blocos_para_xml(blocos)
 
 
-def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None, divida_ativa=None):
+def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None, divida_ativa=None, situacao=None):
     blocos = []
     tem_icms = bool(icms and icms.get("encontrado") and icms.get("total", 0) > 0)
     # IPVA não entra nessa checagem de propósito: no memorando validado que serviu
@@ -1974,6 +2020,22 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None
                 "text": f"Primeira omissão registrada desde: {data_primeira}"})
         blocos.append({"type":"date",
             "text": "(pendências de entrega de declaração — não representam débito financeiro)"})
+
+    # Situação do Contribuinte (Conta Fiscal ICMS) — ocorrências nas
+    # declarações, agrupadas por documento + tipo de ocorrência.
+    if situacao and situacao.get("ocorrencias"):
+        grupos = {}
+        for o in situacao["ocorrencias"]:
+            grupos.setdefault((o["documento"], o["resumo"]), []).append(o)
+        blocos.append({"type":"separator"})
+        blocos.append({"type":"label","text":"Ocorrências nas declarações — SEFAZ-SP (Situação do Contribuinte)"})
+        for (doc, resumo), itens in grupos.items():
+            refs = _faixa_periodos(sorted({o["referencia"] for o in itens}, key=_ordem_periodo))
+            prazos = sorted({o["prazo"] for o in itens if o.get("prazo")})
+            prazo = f" (prazo de entrega: {', '.join(prazos)})" if prazos else ""
+            blocos.append({"type":"bullet","normal":f"{doc} {refs} — ","bold":f"{resumo}{prazo}"})
+        blocos.append({"type":"date",
+            "text": "(pendências de declaração — não representam débito financeiro)"})
 
     # Uma única data "valores atualizados", sempre por último — mesmo padrão
     # usado no federal/municipal (mostrar só quando há valor que possa mudar).
@@ -2515,7 +2577,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     tem_sub = any(os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"])
 
     if tem_sub:
-        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_cnd_sp","estadual_divida_ativa","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
+        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_cnd_sp","estadual_divida_ativa","estadual_situacao_contribuinte","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
         for sub, tipos_validos in mapa.items():
             caminho_sub = os.path.join(pasta_pdfs, sub)
             if not os.path.isdir(caminho_sub): continue
@@ -2569,6 +2631,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
     ipva        = extrair_ipva(get("estadual_ipva"))
     da_estadual = extrair_divida_ativa_estadual(get("estadual_divida_ativa"))
+    situacao_est = extrair_situacao_contribuinte(get("estadual_situacao_contribuinte"))
     municipal   = extrair_municipal(get("municipal"))
     hoje        = date.today().strftime("%d.%m.%Y")
 
@@ -2579,14 +2642,14 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
         "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa, pgmei, parcsn_emissao),
-        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje, da_estadual),
+        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje, da_estadual, situacao_est),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "CERTIDOES_EXTRAS":         montar_certidoes_extras(fgts, cndt),
         "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei, mei_emissao, parcsn_emissao, pgdau_prest, da_estadual),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
-    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"fgts":fgts,"cndt":cndt,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"divida_ativa_estadual":da_estadual,"municipal":municipal}
+    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"fgts":fgts,"cndt":cndt,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"divida_ativa_estadual":da_estadual,"situacao_contribuinte":situacao_est,"municipal":municipal}
 
     resumo = {
         "empresa": nome, "cnpj": cnpj,
