@@ -213,6 +213,9 @@ if resultado:
         for arq, tipo in resultado["classificacao"]:
             if tipo == "desconhecido":
                 st.markdown(f"⚠️ **{arq}** → `desconhecido` (não foi usado no memorando)")
+            elif tipo == "sem_texto":
+                st.markdown(f"⚠️ **{arq}** → `sem_texto`: PDF escaneado (só imagem), o script "
+                            "não consegue ler. Não foi usado no memorando — confira manualmente.")
             else:
                 st.markdown(f"✅ {arq} → `{tipo}`")
         if desconhecidos:
@@ -256,6 +259,9 @@ if resultado:
             resultado["dados_json"]["parcelamento_sispar"],
             resultado["dados_json"]["regularize_valores"],
             resultado["dados_json"]["pgmei"],
+            resultado["dados_json"]["mei_emissao"],
+            resultado["dados_json"]["parcsn_emissao"],
+            resultado["dados_json"]["pgdau_prestacoes"],
         )
     else:
         dados_finais = resultado["dados_template"]
