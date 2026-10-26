@@ -207,6 +207,11 @@ def extrair_federal(texto):
             r["certidao_tipo"] = "Certidão Negativa"
     m = re.search(r'Data de Validade[:\s]+(\d{2}/\d{2}/\d{4})', texto, re.IGNORECASE)
     if m: r["certidao_validade"] = m.group(1)
+    # Data/hora de emissão do relatório ("PROCURADORIA-GERAL DA FAZENDA
+    # NACIONAL 26/10/2026 14:12:59") — referência para saber se a certidão
+    # já estava vencida na consulta.
+    m = re.search(r'(\d{2}/\d{2}/\d{4})\s+\d{2}:\d{2}:\d{2}', texto)
+    r["data_relatorio"] = m.group(1) if m else ""
 
     # Tabela SIEF tem colunas:
     # Receita | PA/Exerc | Dt.Vcto | Vl.Original | Sdo.Devedor | Multa | Juros | Sdo.Dev.Cons. | Situacao
@@ -340,6 +345,21 @@ def extrair_federal(texto):
             "parcelas_em_atraso": int(m_parc.group(2)),
             "valor_em_atraso": float(m_parc.group(3).replace(".","").replace(",","."))
         }
+
+    # Pendência - Parcelamento (PARCSN/PARCMEI): diz a modalidade (MEI ou
+    # Simples Nacional) e quantas parcelas estão em atraso. É a fonte para
+    # interpretar a tela "Emissão de Parcela" do eCAC, que mistura parcelas
+    # atrasadas com a do mês.
+    r["parcelamentos_pendentes"] = []
+    idx_pp = texto.find("Pendência - Parcelamento (PARCSN/PARCMEI)")
+    if idx_pp >= 0:
+        trecho_pp = texto[idx_pp:idx_pp + 1500]
+        fim = re.search(r'\n_{5,}|Diagn[óo]stico Fiscal na Procuradoria|\nPend[êe]ncia - (?!Parcelamento \(PARCSN)', trecho_pp[10:])
+        if fim: trecho_pp = trecho_pp[:fim.start() + 10]
+        for m_pp in re.finditer(r'(MEI|SIMPLES NACIONAL)\s*-\s*EM PARCELAMENTO\s+Parcelas em atraso\s+(\d+)',
+                                trecho_pp, re.IGNORECASE):
+            r["parcelamentos_pendentes"].append({"modalidade": m_pp.group(1).upper(),
+                                                 "parcelas_em_atraso": int(m_pp.group(2))})
 
     # Extrair inscrições SIDA direto do SITUAÇÃO FISCAL
     idx_sida = max(texto.find('Pendência - Inscrição (SIDA)'),
@@ -716,26 +736,47 @@ def extrair_pgdau_prestacoes(texto):
     return r
 
 
-def extrair_mei_emissao_parcela(texto):
+def _parcelas_emissao(texto, n_atraso=None):
+    """Lê a lista "Parcela / Valor" da tela "Emissão de Parcela" do eCAC e
+    separa as parcelas em atraso das que ainda vão vencer (a do mês). A tela
+    lista as duas juntas. Quem diz quantas estão em atraso é o Relatório de
+    Situação Fiscal ("Parcelas em atraso N") — quando ele veio, as N mais
+    antigas são o atraso. Sem o relatório, conta como atraso o que é anterior
+    ao mês da data impressa no topo da tela (ou de hoje)."""
+    parcelas = [(per, float(v.replace(".", "").replace(",", ".")))
+                for per, v in re.findall(r'(\d{2}/\d{4})\s+R\$\s*([\d.,]+)', texto)]
+    parcelas.sort(key=lambda pv: (int(pv[0][3:]), int(pv[0][:2])))
+    if n_atraso is not None:
+        n = min(n_atraso, len(parcelas))
+    else:
+        m = re.search(r'^\s*(\d{2})/(\d{2})/(\d{4}),', texto, re.MULTILINE)
+        ref = (int(m.group(3)), int(m.group(2))) if m else (date.today().year, date.today().month)
+        n = sum(1 for per, _ in parcelas if (int(per[3:]), int(per[:2])) < ref)
+    return parcelas[:n], parcelas[n:]
+
+
+def extrair_mei_emissao_parcela(texto, n_atraso=None):
     """Extrai as parcelas em atraso a partir da tela "Emissão de Parcela" do
     eCAC (lista de meses disponíveis para impressão, um valor por mês).
     Baseado em um único exemplo real — layout pode variar em outros casos.
     """
-    r = {"encontrado": False, "quantidade": 0, "valor_parcela": 0.0, "total": 0.0}
+    r = {"encontrado": False, "quantidade": 0, "valor_parcela": 0.0, "total": 0.0,
+         "periodos": [], "a_vencer": []}
     if not texto:
         return r
-    valores = [float(v.replace(".", "").replace(",", "."))
-               for _, v in re.findall(r'(\d{2}/\d{4})\s+R\$\s*([\d.,]+)', texto)]
-    if not valores:
+    atraso, a_vencer = _parcelas_emissao(texto, n_atraso)
+    if not atraso and not a_vencer:
         return r
     r["encontrado"] = True
-    r["quantidade"] = len(valores)
-    r["valor_parcela"] = valores[0]  # valor mensal costuma ser uniforme
-    r["total"] = round(sum(valores), 2)
+    r["quantidade"] = len(atraso)
+    r["valor_parcela"] = (atraso or a_vencer)[0][1]  # valor mensal costuma ser uniforme
+    r["total"] = round(sum(v for _, v in atraso), 2)
+    r["periodos"] = [p for p, _ in atraso]
+    r["a_vencer"] = [{"periodo": p, "valor": v} for p, v in a_vencer]
     return r
 
 
-def extrair_parcsn_emissao_parcela(texto):
+def extrair_parcsn_emissao_parcela(texto, n_atraso=None):
     """Extrai as parcelas em atraso a partir da tela "Emissão de Parcela" do
     eCAC — mesma tela do MEI, mas para o Parcelamento do Simples Nacional
     "normal" (PARCSN, não MEI). Diferente do MEI, aqui o valor de cada
@@ -743,16 +784,16 @@ def extrair_parcsn_emissao_parcela(texto):
     em vez de assumir um valor mensal uniforme).
     Baseado em um único exemplo real — layout pode variar em outros casos.
     """
-    r = {"encontrado": False, "parcelas": [], "total": 0.0}
+    r = {"encontrado": False, "parcelas": [], "total": 0.0, "a_vencer": []}
     if not texto:
         return r
-    parcelas = [(p, float(v.replace(".", "").replace(",", ".")))
-                for p, v in re.findall(r'(\d{2}/\d{4})\s+R\$\s*([\d.,]+)', texto)]
-    if not parcelas:
+    atraso, a_vencer = _parcelas_emissao(texto, n_atraso)
+    if not atraso and not a_vencer:
         return r
     r["encontrado"] = True
-    r["parcelas"] = [{"periodo": p, "valor": v} for p, v in parcelas]
-    r["total"] = round(sum(v for _, v in parcelas), 2)
+    r["parcelas"] = [{"periodo": p, "valor": v} for p, v in atraso]
+    r["total"] = round(sum(v for _, v in atraso), 2)
+    r["a_vencer"] = [{"periodo": p, "valor": v} for p, v in a_vencer]
     return r
 
 
@@ -1559,6 +1600,14 @@ def blocos_para_xml(blocos):
 # 4. MONTAGEM DOS TEXTOS
 # ══════════════════════════════════════════════════════════
 
+def _faixa_periodos(periodos):
+    """"08/2026" | "08/2026 e 09/2026" | "08/2026, 09/2026 e 10/2026" | "02/2025 a 07/2026" (>3)."""
+    if not periodos: return ""
+    if len(periodos) == 1: return periodos[0]
+    if len(periodos) > 3: return f"{periodos[0]} a {periodos[-1]}"
+    return ", ".join(periodos[:-1]) + " e " + periodos[-1]
+
+
 def _ordem_periodo(per):
     """Chave cronológica para PA do SIEF: "MM/AAAA", "AAAA" ou "Nº TRIM/AAAA"."""
     m = re.search(r'(\d{4})$', per)
@@ -1581,9 +1630,21 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
                     f"débitos abaixo, caso não sejam regularizados."})
         blocos.append({"type":"separator"})
     if federal.get("certidao_numero"):
-        val = (f", válida até {federal['certidao_validade']}" if federal.get("certidao_validade") else "")
         rotulo = federal.get("certidao_tipo") or "Certidão Positiva com Efeitos de Negativa"
-        blocos.append({"type":"normal_bold","text":f"{rotulo} gerada","bold":f"{val}."})
+        validade = federal.get("certidao_validade", "")
+        try:
+            ref = (datetime.strptime(federal["data_relatorio"], "%d/%m/%Y").date()
+                   if federal.get("data_relatorio") else date.today())
+            vencida = datetime.strptime(validade, "%d/%m/%Y").date() < ref
+        except ValueError:
+            vencida = False
+        if vencida:
+            # O relatório mostra a última certidão emitida, mesmo que antiga —
+            # não dá pra dizer "gerada" de uma certidão vencida há anos.
+            blocos.append({"type":"normal_bold","text":f"{rotulo} ","bold":f"vencida em {validade}."})
+        else:
+            val = f", válida até {validade}" if validade else ""
+            blocos.append({"type":"normal_bold","text":f"{rotulo} gerada","bold":f"{val}."})
 
     # Declarações omissas
     if decl_omissas and decl_omissas.get("encontrado"):
@@ -1609,10 +1670,17 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     tem_parcsn_atraso = parcsn_emissao and parcsn_emissao.get("encontrado")
     if tem_mei_atraso or tem_dau_atraso or tem_pgmei_atraso or tem_parcsn_atraso:
         blocos.append({"type":"label","text":"Débitos:"})
-        if tem_mei_atraso:
+        if tem_mei_atraso and mei_emissao["quantidade"] > 0:
+            qtd = mei_emissao["quantidade"]
             blocos.append({"type":"bullet",
-                "normal": f"PARCELAMENTO MEI ATRASO – {mei_emissao['quantidade']} parcelas de {fmt(mei_emissao['valor_parcela'])} totalizando ",
+                "normal": f"PARCELAMENTO MEI ATRASO – {qtd} {plural(qtd, 'parcela', 'parcelas')} de {fmt(mei_emissao['valor_parcela'])} "
+                          f"({_faixa_periodos(mei_emissao['periodos'])}) totalizando ",
                 "bold": fmt(mei_emissao['total']) + "."})
+        if tem_mei_atraso:
+            for p in mei_emissao.get("a_vencer", []):
+                blocos.append({"type":"bullet",
+                    "normal": f"PARCELAMENTO MEI – parcela do mês {p['periodo']} (a vencer): ",
+                    "bold": fmt(p["valor"]) + "."})
         if tem_dau_atraso:
             blocos.append({"type":"bullet",
                 "normal": f"PARCELAMENTO DÍVIDA ATIVA – parcela do mês {pgdau_prest['mes_parcela_atual']} de ",
@@ -1627,15 +1695,20 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             blocos.append({"type":"bullet",
                 "normal": f"DAS MEI EM ATRASO – {faixa} ({qtd} {plural(qtd, 'guia', 'guias')}) totalizando ",
                 "bold": fmt(pgmei['total_atraso']) + "."})
-        if tem_parcsn_atraso:
+        if tem_parcsn_atraso and parcsn_emissao["parcelas"]:
             # Valor por parcela não é uniforme (diferente do MEI) — lista os
             # períodos em vez de dizer "N parcelas de R$X", que seria falso
             # quando os valores variam mês a mês.
-            periodos = ", ".join(p["periodo"] for p in parcsn_emissao["parcelas"])
+            periodos = _faixa_periodos([p["periodo"] for p in parcsn_emissao["parcelas"]])
             qtd = len(parcsn_emissao["parcelas"])
             blocos.append({"type":"bullet",
                 "normal": f"PARCELAMENTO SIMPLES NACIONAL EM ATRASO – {qtd} {plural(qtd, 'parcela', 'parcelas')} ({periodos}) totalizando ",
                 "bold": fmt(parcsn_emissao['total']) + "."})
+        if tem_parcsn_atraso:
+            for p in parcsn_emissao.get("a_vencer", []):
+                blocos.append({"type":"bullet",
+                    "normal": f"PARCELAMENTO SIMPLES NACIONAL – parcela do mês {p['periodo']} (a vencer): ",
+                    "bold": fmt(p["valor"]) + "."})
 
     # Anos do MEI ainda não liberados no PGMEI (dependem da entrega da DASN
     # do ano exibido) — não dá pra saber o valor exato (falta multa/juros,
@@ -2079,7 +2152,8 @@ def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, pa
 
 
 def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, hoje,
-                  parc_sn=None, parc_simp=None, parc_dau=None, parc_sispar=None, reg_valores=None, pgmei=None):
+                  parc_sn=None, parc_simp=None, parc_dau=None, parc_sispar=None, reg_valores=None, pgmei=None,
+                  mei_emissao=None, parcsn_emissao=None, pgdau_prest=None):
     """Gera o bloco de resumo final do memorando."""
     blocos = []
     blocos.append({"type":"label","text":"RESUMO"})
@@ -2137,12 +2211,21 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
             partes_fed.append(fmt(total_aberto))
             total_fed += total_aberto
 
-    # SIEFPAR
+    # Parcelas de parcelamentos já ativos: atrasadas (SIEFPAR, MEI, PARCSN) e
+    # a parcela do mês da Dívida Ativa — num valor só, como no memorando
+    # validado ("R$ 1.229,87 parcelas").
+    parcelas_ativos = 0.0
     if parc_siefpar:
-        saldo_atraso = parc_siefpar.get("valor_em_atraso", 0.0)
-        if saldo_atraso > 0:
-            partes_fed.append(f"{fmt(saldo_atraso)} parcelas")
-            total_fed += saldo_atraso
+        parcelas_ativos += parc_siefpar.get("valor_em_atraso", 0.0)
+    if mei_emissao and mei_emissao.get("encontrado"):
+        parcelas_ativos += mei_emissao.get("total", 0.0)
+    if parcsn_emissao and parcsn_emissao.get("encontrado"):
+        parcelas_ativos += parcsn_emissao.get("total", 0.0)
+    if pgdau_prest and pgdau_prest.get("encontrado"):
+        parcelas_ativos += pgdau_prest.get("valor_parcela_atual", 0.0)
+    if parcelas_ativos > 0:
+        partes_fed.append(f"{fmt(parcelas_ativos)} parcelas")
+        total_fed += parcelas_ativos
 
     # PGMEI — DAS MEI em atraso (valor real) + mínimo estimado do(s) ano(s)
     # ainda em aberto (mesmo critério do corpo do texto: soma tudo que é
@@ -2191,7 +2274,7 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
 
     # Total geral
     total_geral = total_fed + total_mun + honorarios_calc
-    obs = " (restando apenas parcelas a vencer)" if parc_siefpar and parc_siefpar.get("valor_em_atraso", 0) > 0 else ""
+    obs = " (restando apenas parcelas a vencer)" if parcelas_ativos > 0 else ""
     blocos.append({"type":"normal_bold",
         "text": "VALOR TOTAL PARA REGULARIZAÇÃO: ",
         "bold": fmt(total_geral) + obs})
@@ -2395,7 +2478,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         for arq in sorted(os.listdir(pasta_pdfs)):
             if not arq.lower().endswith(".pdf"): continue
             texto = extrair_texto_pdf(os.path.join(pasta_pdfs, arq))
-            tipo  = classificar_pdf(texto)
+            tipo  = classificar_pdf(texto) if texto.strip() else "sem_texto"
             textos.setdefault(tipo, []).append(texto)
             classificacao.append((arq, tipo))
 
@@ -2411,8 +2494,19 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     reg_valores     = extrair_regularize_valores(get("regularize_valores"))
     pgdau_prest = extrair_pgdau_prestacoes(get("parcelamento_pgdau_prestacoes"))
     analise_previa = extrair_analise_previa_sn(get("analise_previa_sn"))
-    mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"))
-    parcsn_emissao = extrair_parcsn_emissao_parcela(get("parcelamento_pn_emissao"))
+    # A tela "Emissão de Parcela" é igual para MEI e PARCSN — quando o
+    # relatório diz a modalidade, ele manda (o palpite pela tela erra: a tela
+    # do MEI também pode trazer "Nome Empresarial").
+    pendentes = {p["modalidade"]: p["parcelas_em_atraso"] for p in federal.get("parcelamentos_pendentes", [])}
+    if len(pendentes) == 1:
+        modalidade = next(iter(pendentes))
+        destino, origem = (("parcelamento_mei_emissao", "parcelamento_pn_emissao") if modalidade == "MEI"
+                           else ("parcelamento_pn_emissao", "parcelamento_mei_emissao"))
+        if origem in textos:
+            textos.setdefault(destino, []).extend(textos.pop(origem))
+            classificacao = [(a, destino if t == origem else t) for a, t in classificacao]
+    mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"), pendentes.get("MEI"))
+    parcsn_emissao = extrair_parcsn_emissao_parcela(get("parcelamento_pn_emissao"), pendentes.get("SIMPLES NACIONAL"))
     pgmei       = extrair_pgmei(get("mei_pgmei"))
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"), get("estadual_cnd_sp"))
     fgts        = extrair_fgts(get("fgts_crf"))
@@ -2433,7 +2527,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "CERTIDOES_EXTRAS":         montar_certidoes_extras(fgts, cndt),
-        "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei),
+        "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei, mei_emissao, parcsn_emissao, pgdau_prest),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
