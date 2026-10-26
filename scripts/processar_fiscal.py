@@ -998,6 +998,8 @@ def extrair_parcelamento_sispar(texto):
             "total_a_pagar": 0.0,
             "num_prestacoes": 0,
             "valor_prestacao": 0.0,
+            "num_entrada": 0,
+            "valor_entrada": 0.0,
             "desconto": 0.0
         }
 
@@ -1050,6 +1052,12 @@ def extrair_parcelamento_sispar(texto):
         if m_val:
             opcao["num_prestacoes"]  = int(m_val.group(1))
             opcao["valor_prestacao"] = float(m_val.group(2).replace(".","").replace(",","."))
+
+        # Transação com entrada: "Entrada 12x R$ 372,50" antes da "Básica"
+        m_ent = re.search(r'Entrada\s+(\d+)x\s+R\$\s*([\d.,]+)', bloco, re.IGNORECASE)
+        if m_ent:
+            opcao["num_entrada"]   = int(m_ent.group(1))
+            opcao["valor_entrada"] = float(m_ent.group(2).replace(".","").replace(",","."))
 
         # Só incluir opções com valor real (ignorar opções com R$ 0,00)
         if opcao["categoria"] and (opcao["total_a_pagar"] > 0 or not opcao["disponivel"]):
@@ -1929,7 +1937,10 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             total_ = fmt(op.get("total_a_pagar", 0))
             nd_    = op.get("num_dividas", 0)
             blocos.append({"type":"italic","text":f"{cat} — {nd_} {plural(nd_, 'inscrição negociável', 'inscrições negociáveis')}"})
-            if np_ == 1:
+            if op.get("num_entrada"):
+                blocos.append({"type":"bullet","normal":"Entrada: ",
+                    "bold":f"{op['num_entrada']}x de {fmt(op['valor_entrada'])} – Demais parcelas: {np_}x de {vp_} — Total: {total_}"})
+            elif np_ == 1:
                 blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ","bold":f"1x de {vp_}"})
             else:
                 blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
@@ -2317,6 +2328,28 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
         if total_aberto > 0:
             partes_fed.append(fmt(total_aberto))
             total_fed += total_aberto
+
+    # Dívida Ativa da União com simulação de parcelamento na PGFN (SISPAR):
+    # entra só a 1ª parcela de cada opção disponível (mesma regra do
+    # Parcelamento Simplificado acima) — uma opção por categoria
+    # (Previdenciário, Simples Nacional, Demais Débitos).
+    # As opções de uma mesma categoria são alternativas (ex.: 133x ou à
+    # vista) — vale uma por categoria, a com mais parcelas (mesmo critério
+    # do parcelamento municipal). Com entrada, a 1ª parcela é a entrada.
+    if parc_sispar and parc_sispar.get("encontrado"):
+        escolhidas = {}
+        for op in parc_sispar.get("opcoes", []):
+            if not op.get("disponivel") or op.get("total_a_pagar", 0) <= 0:
+                continue
+            cat = op.get("categoria") or "PGFN"
+            n = op.get("num_entrada", 0) + op.get("num_prestacoes", 0)
+            if cat not in escolhidas or n > escolhidas[cat][0]:
+                escolhidas[cat] = (n, op)
+        for cat, (_, op) in escolhidas.items():
+            primeira = op.get("valor_entrada") or op.get("valor_prestacao", 0.0)
+            if primeira > 0:
+                partes_fed.append(f"{fmt(primeira)} (1ª parcela da Dívida Ativa — {cat})")
+                total_fed += primeira
 
     # Parcelas de parcelamentos já ativos: atrasadas (SIEFPAR, MEI, PARCSN) e
     # a parcela do mês da Dívida Ativa — num valor só, como no memorando
