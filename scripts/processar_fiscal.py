@@ -109,6 +109,11 @@ def classificar_pdf(texto):
         return "parcelamento_simplificado"
     if "valor da primeira parcela" in t or "valor das demais parcelas" in t:
         return "parcelamento_sn"
+    # Dívida Ativa estadual — tela "Consultar Débito" de uma CDA no portal da
+    # PGE-SP (dividaativa.pge.sp.gov.br): saldo, receitas e natureza da dívida.
+    # Só o endereço não basta — CRDA e IPVA vêm do mesmo portal.
+    if "registro/cda" in t and ("receitas do débito" in t or "receitas do debito" in t):
+        return "estadual_divida_ativa"
     if "procuradoria da divida ativa" in t and "estado de sao paulo" in t and "crda" in t:
         return "estadual_pge"
     if "procuradoria da dívida ativa" in t and "estado de são paulo" in t and "crda" in t:
@@ -1182,6 +1187,35 @@ def extrair_cndt(texto):
     return r
 
 
+def extrair_divida_ativa_estadual(texto):
+    """CDAs da Dívida Ativa de SP, a partir da tela "Consultar Débito" do
+    portal da PGE-SP (uma CDA por PDF; vários PDFs chegam concatenados).
+    Baseado em um único exemplo real — layout pode variar."""
+    r = {"encontrado": False, "cdas": [], "total": 0.0}
+    if not texto:
+        return r
+    def num(v): return float(v.replace(".", "").replace(",", "."))
+    blocos = re.split(r'(?=N[°º]\s*de\s*Registro/CDA:\s*\d)', texto)
+    vistos = set()
+    for b in blocos:
+        m = re.search(r'N[°º]\s*de\s*Registro/CDA:\s*(\d+)', b)
+        if not m or m.group(1) in vistos:
+            continue
+        vistos.add(m.group(1))
+        cda = {"numero": m.group(1), "data_inscricao": "", "situacao": "", "saldo": 0.0, "natureza": ""}
+        m = re.search(r'Data de Inscri[çc][ãa]o:\s*(\d{2}/\d{2}/\d{4})', b)
+        if m: cda["data_inscricao"] = m.group(1)
+        m = re.search(r'Situa[çc][ãa]o:\s*(.+?)\s+Saldo \(R\$\):\s*([\d.,]+)', b)
+        if m: cda["situacao"], cda["saldo"] = m.group(1).strip(), num(m.group(2))
+        m = re.search(r'Natureza da D[íi]vida\s*/\s*Origem\s*\n\s*(.+?)\s+inscrito por', b, re.IGNORECASE)
+        if m: cda["natureza"] = m.group(1).strip()
+        r["cdas"].append(cda)
+    if r["cdas"]:
+        r["encontrado"] = True
+        r["total"] = round(sum(c["saldo"] for c in r["cdas"]), 2)
+    return r
+
+
 def extrair_ipva(texto):
     """Extrai débitos de IPVA do relatório "Débitos de IPVA Vinculados ao Sujeito
     Passivo" (Secretaria da Fazenda e Planejamento do Estado de São Paulo).
@@ -1869,14 +1903,15 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     return blocos_para_xml(blocos)
 
 
-def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None):
+def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None, divida_ativa=None):
     blocos = []
     tem_icms = bool(icms and icms.get("encontrado") and icms.get("total", 0) > 0)
     # IPVA não entra nessa checagem de propósito: no memorando validado que serviu
     # de referência, a seção de IPVA aparece sozinha, sem a linha "Débitos
     # encontrados" — diferente do ICMS, que já foi confirmado COM essa linha.
     tem_ipva = bool(ipva and ipva.get("encontrado") and ipva.get("total", 0) > 0)
-    if not estadual.get("tem_debitos") and not tem_icms:
+    tem_da = bool(divida_ativa and divida_ativa.get("encontrado") and divida_ativa.get("total", 0) > 0)
+    if not estadual.get("tem_debitos") and not tem_icms and not tem_da:
         blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
         for c in estadual.get("certidaos",[]):
             orgao = c.get("orgao",""); num = c.get("numero",""); val = c.get("validade","")
@@ -1885,6 +1920,17 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None
             blocos.append({"type":"normal_bold","text":f"{prefix} nº ","bold":f"{num} ({orgao}){val_txt}: Sem débitos."})
     else:
         blocos.append({"type":"normal","text":"Débitos encontrados. Verificar certidões."})
+
+    # Dívida Ativa estadual (CDAs — PGE-SP)
+    if tem_da:
+        cdas = divida_ativa["cdas"]
+        blocos.append({"type":"label","text":f"Dívida Ativa — {len(cdas)} {plural(len(cdas), 'inscrição', 'inscrições')} na PGE-SP"})
+        for c in cdas:
+            nat = f" — {c['natureza']}" if c.get("natureza") else ""
+            data = f" — inscrita em {c['data_inscricao']}" if c.get("data_inscricao") else ""
+            blocos.append({"type":"bullet","normal":f"CDA nº {c['numero']}{nat}{data} — Saldo: ","bold":fmt(c["saldo"])})
+        if len(cdas) > 1:
+            blocos.append({"type":"normal_bold","text":"Total: ","bold":fmt(divida_ativa["total"])})
 
     # Débitos de IPVA — Secretaria da Fazenda e Planejamento do Estado de São Paulo
     if tem_ipva:
@@ -1931,7 +1977,7 @@ def montar_estadual(estadual, site_contrib=None, icms=None, ipva=None, hoje=None
 
     # Uma única data "valores atualizados", sempre por último — mesmo padrão
     # usado no federal/municipal (mostrar só quando há valor que possa mudar).
-    if estadual.get("tem_debitos") or tem_icms or tem_ipva:
+    if estadual.get("tem_debitos") or tem_icms or tem_ipva or tem_da:
         blocos.append({"type":"date","text":f"(valores atualizados no dia {hoje})"})
 
     return blocos_para_xml(blocos)
@@ -2152,7 +2198,7 @@ def calcular_honorarios(federal, decl_omissas, municipal, parc_sn, parc_simp, pa
 
 def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, hoje,
                   parc_sn=None, parc_simp=None, parc_dau=None, parc_sispar=None, reg_valores=None, pgmei=None,
-                  mei_emissao=None, parcsn_emissao=None, pgdau_prest=None):
+                  mei_emissao=None, parcsn_emissao=None, pgdau_prest=None, divida_ativa_estadual=None):
     """Gera o bloco de resumo final do memorando."""
     blocos = []
     blocos.append({"type":"label","text":"RESUMO"})
@@ -2243,6 +2289,15 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
             "normal": "Âmbito Federal: ",
             "bold":   " + ".join(partes_fed)})
 
+    # Estadual — saldo das CDAs da Dívida Ativa (em aberto, não parcelado)
+    total_est = 0.0
+    if divida_ativa_estadual and divida_ativa_estadual.get("encontrado"):
+        total_est = divida_ativa_estadual.get("total", 0.0)
+    if total_est > 0:
+        blocos.append({"type":"bullet",
+            "normal": "Âmbito Estadual: ",
+            "bold":   fmt(total_est)})
+
     # Municipal — mesma prioridade usada no corpo do texto: quando há um
     # levantamento específico do que entra no parcelamento, o total do
     # resumo tem que bater com o total mostrado no âmbito, não com a
@@ -2272,7 +2327,7 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
                 "bold": fmt(honorarios_calc)})
 
     # Total geral
-    total_geral = total_fed + total_mun + honorarios_calc
+    total_geral = total_fed + total_est + total_mun + honorarios_calc
     obs = " (restando apenas parcelas a vencer)" if parcelas_ativos > 0 else ""
     blocos.append({"type":"normal_bold",
         "text": "VALOR TOTAL PARA REGULARIZAÇÃO: ",
@@ -2460,7 +2515,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     tem_sub = any(os.path.isdir(os.path.join(pasta_pdfs, s)) for s in ["federal","estadual","municipal"])
 
     if tem_sub:
-        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_cnd_sp","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
+        mapa = {"federal":TIPOS_FEDERAL, "estadual":{"estadual_pge","estadual_sefaz","estadual_cnd_sp","estadual_divida_ativa","estadual_site_contribuinte","estadual_icms_parcelamento","estadual_ipva"}, "municipal":{"municipal"}}
         for sub, tipos_validos in mapa.items():
             caminho_sub = os.path.join(pasta_pdfs, sub)
             if not os.path.isdir(caminho_sub): continue
@@ -2513,6 +2568,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     site_contrib = extrair_site_contribuinte(get("estadual_site_contribuinte"))
     icms_parc   = extrair_icms_parcelamento(get("estadual_icms_parcelamento"))
     ipva        = extrair_ipva(get("estadual_ipva"))
+    da_estadual = extrair_divida_ativa_estadual(get("estadual_divida_ativa"))
     municipal   = extrair_municipal(get("municipal"))
     hoje        = date.today().strftime("%d.%m.%Y")
 
@@ -2523,14 +2579,14 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
         "CNPJ":                     cnpj or "00.000.000/0000-00",
         "DATA_CONSULTA":            date.today().strftime("%d/%m/%Y"),
         "FEDERAL_TEXTO":            montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg_valores, decl_omissas, pgdau_prest, mei_emissao, analise_previa, pgmei, parcsn_emissao),
-        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje),
+        "ESTADUAL_TEXTO":           montar_estadual(estadual, site_contrib, icms_parc, ipva, hoje, da_estadual),
         "MUNICIPAL_TEXTO":          montar_municipal(municipal, hoje),
         "CERTIDOES_EXTRAS":         montar_certidoes_extras(fgts, cndt),
-        "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei, mei_emissao, parcsn_emissao, pgdau_prest),
+        "RESUMO":                   montar_resumo(federal, decl_omissas, municipal, siefpar, honorarios, hoje, parc_sn, parc_simp, parc_dau, parc_sispar, reg_valores, pgmei, mei_emissao, parcsn_emissao, pgdau_prest, da_estadual),
         "DATA_ATUALIZACAO_VALORES": date.today().strftime("%d/%m/%Y"),
     }
 
-    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"fgts":fgts,"cndt":cndt,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"municipal":municipal}
+    dados_json = {"empresa":{"nome":nome,"cnpj":cnpj},"federal":federal,"parcelamento_sn":parc_sn,"parcelamento_simplificado":parc_simp,"parcelamento_dau":parc_dau,"parcelamento_sispar":parc_sispar,"regularize_valores":reg_valores,"pgdau_prestacoes":pgdau_prest,"mei_emissao":mei_emissao,"parcsn_emissao":parcsn_emissao,"pgmei":pgmei,"analise_previa_sn":analise_previa,"declaracoes_omissas":decl_omissas,"estadual":estadual,"fgts":fgts,"cndt":cndt,"site_contribuinte":site_contrib,"icms_parcelamento":icms_parc,"ipva":ipva,"divida_ativa_estadual":da_estadual,"municipal":municipal}
 
     resumo = {
         "empresa": nome, "cnpj": cnpj,

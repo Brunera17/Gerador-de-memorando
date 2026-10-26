@@ -262,6 +262,7 @@ if resultado:
             resultado["dados_json"]["mei_emissao"],
             resultado["dados_json"]["parcsn_emissao"],
             resultado["dados_json"]["pgdau_prestacoes"],
+            resultado["dados_json"]["divida_ativa_estadual"],
         )
     else:
         dados_finais = resultado["dados_template"]
