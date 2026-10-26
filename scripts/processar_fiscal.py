@@ -1638,11 +1638,10 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             vencida = datetime.strptime(validade, "%d/%m/%Y").date() < ref
         except ValueError:
             vencida = False
-        if vencida:
-            # O relatório mostra a última certidão emitida, mesmo que antiga —
-            # não dá pra dizer "gerada" de uma certidão vencida há anos.
-            blocos.append({"type":"normal_bold","text":f"{rotulo} ","bold":f"vencida em {validade}."})
-        else:
+        # O relatório mostra a última certidão emitida, mesmo que antiga —
+        # vencida na data do relatório, ela fica fora do memorando (como nos
+        # memorandos validados), em vez de aparecer como "gerada".
+        if not vencida:
             val = f", válida até {validade}" if validade else ""
             blocos.append({"type":"normal_bold","text":f"{rotulo} gerada","bold":f"{val}."})
 
