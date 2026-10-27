@@ -162,6 +162,8 @@ def classificar_pdf(texto):
             or "composicao da guia" in t
             or ("prefeitura municipal" in t and "extrato de débito" in t)
             or ("prefeitura municipal" in t and "extrato de debito" in t)
+            or ("certidão negativa de débitos" in t and "tributos municipais" in t)
+            or ("certidao negativa de debitos" in t and "tributos municipais" in t)
             or ("fazenda pública municipal" in t and "certidão positiva de débitos" in t)
             or ("fazenda publica municipal" in t and "certidao positiva de debitos" in t)):
         return "municipal"
@@ -330,9 +332,16 @@ def extrair_federal(texto):
             rec_raw = m.group(1).strip()
             if rec_raw.lower() in ignorar or len(rec_raw) < 3: continue
             if not re.search(r'[A-Z0-9]', rec_raw): continue
+            venc = m.group(2)
+            # PA como data completa (ex.: MAED "5440-01 - MAED - DCTFWEB
+            # 01/04/2025 05/09/2025 ...") — a data colava no nome da receita e
+            # o período saía do vencimento. Separa e usa o mês do PA.
+            periodo = venc[3:5]+"/"+venc[6:]
+            m_pa = re.match(r'(.+?)\s+\d{2}/(\d{2})/(\d{4})$', rec_raw)
+            if m_pa:
+                rec_raw, periodo = m_pa.group(1), f"{m_pa.group(2)}/{m_pa.group(3)}"
             # Verificar se já foi capturado (evitar duplicatas)
             rec = normalizar_receita(rec_raw)
-            venc = m.group(2)
             saldo_cons = float(m.group(7).replace(".","").replace(",","."))
             # Usar vencimento como chave de deduplicação
             # Só adicionar se não foi capturado pela primeira passagem
@@ -340,10 +349,9 @@ def extrair_federal(texto):
             ja_tem = any(abs(i["saldo_devedor"] - saldo_cons) < 0.01 and i["vencimento"] == venc
                          for i in items)
             if not ja_tem and saldo_cons > 0:
-                vistos.add(chave)
                 orig = float(m.group(3).replace(".","").replace(",","."))
                 items.append({"receita":rec,"receita_original":rec_raw,
-                              "periodo":venc[3:5]+"/"+venc[6:],"vencimento":venc,
+                              "periodo":periodo,"vencimento":venc,
                               "valor_original":orig,"saldo_devedor":saldo_cons})
         return items
 
