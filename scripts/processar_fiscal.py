@@ -161,7 +161,9 @@ def classificar_pdf(texto):
             or "composição da guia" in t
             or "composicao da guia" in t
             or ("prefeitura municipal" in t and "extrato de débito" in t)
-            or ("prefeitura municipal" in t and "extrato de debito" in t)):
+            or ("prefeitura municipal" in t and "extrato de debito" in t)
+            or ("fazenda pública municipal" in t and "certidão positiva de débitos" in t)
+            or ("fazenda publica municipal" in t and "certidao positiva de debitos" in t)):
         return "municipal"
     return "desconhecido"
 
@@ -1592,6 +1594,34 @@ def extrair_municipal(texto):
                 r["debitos"].append(debito)
             else:
                 r["a_vencer"].append(debito)
+        if r["debitos"] and r["total"] == 0.0:
+            r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
+
+    # ── Formato 8: Certidão Positiva de Débitos do portal Atende.Net (ex.:
+    # Município de Pouso Alegre/MG) — uma linha por lançamento: Lançamento
+    # Parc Vencimento Sub-Receita Tributo Correção Multa Juros Total. Cada
+    # lançamento costuma ser uma competência diferente com parcela 1, então
+    # o vencimento identifica a linha no memorando (no lugar do ano).
+    # Baseado em um único exemplo real.
+    if "certidão positiva de débitos" in tl or "certidao positiva de debitos" in tl:
+        m_num = re.search(r'Certid[ãa]o Positiva de D[ée]bitos N[°º]\s*([\d/]+)', texto, re.IGNORECASE)
+        if m_num and not r["certidao_numero"]:
+            r["certidao_numero"] = m_num.group(1)
+            r["certidao_tipo"]   = "POSITIVA"
+        padrao_atende = re.compile(
+            r'^(\d+/\d{4})\s+(\d+)\s+(\d{2}/\d{2}/\d{4})\s+(.+?)\s+'
+            r'([\d.,]+)\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s*$', re.MULTILINE)
+        for m in padrao_atende.finditer(texto):
+            lancamento, parcela, venc, receita, valor, total_linha = m.groups()
+            r["debitos"].append({
+                "status":  "",
+                "numero":  lancamento,
+                "ano":     f"(venc. {venc})",
+                "parcela": "",
+                "receita": receita.strip(),
+                "valor":   float(valor.replace(".","").replace(",",".")),
+                "a_pagar": float(total_linha.replace(".","").replace(",",".")),
+            })
         if r["debitos"] and r["total"] == 0.0:
             r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
 
