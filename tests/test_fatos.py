@@ -83,7 +83,7 @@ def extrair_fatos(t):
 # próprio PDF de origem — ver o histórico de commits para a evidência.
 CASOS_ESPERADOS = {
     "CLIENTES/CLIENTE_1": {
-        "sispar_opcoes": 6,
+        "sispar_opcoes": 4,  # 6 no PDF, 2 repetidas (mesma opção do Simples Nacional)
         "icms_total": 971.15,
         "icms_quantidade_dividas": 2,
         "municipal_total": 938.43,

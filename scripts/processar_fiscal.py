@@ -1067,6 +1067,17 @@ def extrair_parcelamento_sispar(texto):
         if opcao["categoria"] and (opcao["total_a_pagar"] > 0 or not opcao["disponivel"]):
             result["opcoes"].append(opcao)
 
+    # O mesmo PDF salvo duas vezes (ou a mesma opção repetida dentro dele)
+    # gerava a mesma linha duas vezes no corpo do memorando — fica só uma.
+    unicas, vistas = [], set()
+    for op in result["opcoes"]:
+        chave = tuple(op[k] for k in ("categoria", "disponivel", "total_a_pagar", "num_prestacoes",
+                                      "valor_prestacao", "num_entrada", "valor_entrada"))
+        if chave not in vistas:
+            vistas.add(chave)
+            unicas.append(op)
+    result["opcoes"] = unicas
+
     return result
 
 
