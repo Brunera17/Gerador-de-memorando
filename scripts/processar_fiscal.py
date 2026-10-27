@@ -159,7 +159,9 @@ def classificar_pdf(texto):
             or "detalhamento dos débitos mobiliários" in t
             or "detalhamento dos debitos mobiliarios" in t
             or "composição da guia" in t
-            or "composicao da guia" in t):
+            or "composicao da guia" in t
+            or ("prefeitura municipal" in t and "extrato de débito" in t)
+            or ("prefeitura municipal" in t and "extrato de debito" in t)):
         return "municipal"
     return "desconhecido"
 
@@ -1558,6 +1560,41 @@ def extrair_municipal(texto):
         if m_tot_dam and r["total"] == 0.0:
             r["total"] = float(m_tot_dam.group(1).replace(".","").replace(",","."))
 
+    # ── Formato 7: Extrato de Débito do portal SIAT (ex.: Prefeitura de
+    # Sorocaba) — uma linha por parcela: Exercício Tributo Parcela
+    # Auto/Data lavratura SE Vencimento Vlr Lançado Vlr Atualizado
+    # Jrs/Mul/Des Vlr total. O extrato traz também as parcelas do exercício
+    # que ainda não venceram (o "Total" do cabeçalho soma tudo); só as
+    # vencidas até a data de cálculo são débito — as demais ficam em
+    # "a_vencer", só para informação. Baseado em um único exemplo real.
+    if "extrato de débito" in tl or "extrato de debito" in tl:
+        situacoes_se = {"S":"Suspenso","P":"Parcelado","A":"Dívida Ativa","C":"Cobrança",
+                        "E":"Ajuizado","T":"Protestado","D":"Ajuizado"}
+        m_calc = re.search(r'Dt\. C[áa]lculo.*?(\d{2}/\d{2}/\d{4})', texto, re.DOTALL)
+        data_calc = datetime.strptime(m_calc.group(1), "%d/%m/%Y").date() if m_calc else date.today()
+        padrao_ext = re.compile(
+            r'^(\d{4})\s+\d+\s+-\s+(.+?)\s+(\d+)\s+(.*?)\s*(\d{2}/\d{2}/\d{4})\s+'
+            r'([\d.,]+)\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s*$', re.MULTILINE)
+        r.setdefault("a_vencer", [])
+        for m in padrao_ext.finditer(texto):
+            ano, receita, parcela, meio, venc, valor, total_linha = m.groups()
+            se = re.sub(r'[\s\-/\d]', '', meio).upper()
+            debito = {
+                "status":  situacoes_se.get(se, ""),
+                "numero":  "",
+                "ano":     ano,
+                "parcela": parcela,
+                "receita": receita.strip(),
+                "valor":   float(valor.replace(".","").replace(",",".")),
+                "a_pagar": float(total_linha.replace(".","").replace(",",".")),
+            }
+            if datetime.strptime(venc, "%d/%m/%Y").date() < data_calc:
+                r["debitos"].append(debito)
+            else:
+                r["a_vencer"].append(debito)
+        if r["debitos"] and r["total"] == 0.0:
+            r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
+
     if r["debitos"] or r["total"] > 0 or r["total_parcelamento"] > 0:
         r["tem_debitos"] = True
         r["status"]      = "COM_DEBITOS"
@@ -2466,10 +2503,32 @@ def montar_certidoes_extras(fgts, cndt):
     return "".join(xml)
 
 
+def _blocos_municipal_a_vencer(municipal):
+    """Parcelas do exercício que ainda não venceram (Extrato de Débito/Formato
+    7): não são débito nem entram no resumo, mas o memorando mostra o valor
+    delas e o total geral, caso o cliente queira quitar tudo de uma vez."""
+    a_vencer = municipal.get("a_vencer", [])
+    if not a_vencer:
+        return []
+    blocos = [{"type":"label","text":"Parcelas a vencer (opcional — para quitar todos os débitos de uma vez):"}]
+    for d in a_vencer:
+        blocos.append({"type":"bullet","normal":f"{d['receita']} {d['ano']} — parcela {d['parcela']}: ",
+                       "bold":fmt(d["a_pagar"])})
+    total_a_vencer = sum(d["a_pagar"] for d in a_vencer)
+    blocos.append({"type":"normal_bold","text":"Total das parcelas a vencer: ","bold":fmt(total_a_vencer)})
+    blocos.append({"type":"normal_bold","text":"Total com as parcelas a vencer: ",
+                   "bold":fmt(municipal.get("total", 0.0) + total_a_vencer)})
+    return blocos
+
+
 def montar_municipal(municipal, hoje):
     blocos = []
     if not municipal.get("tem_debitos"):
-        blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
+        if municipal.get("a_vencer"):
+            blocos.append({"type":"normal","text":"Sem débitos vencidos."})
+            blocos += _blocos_municipal_a_vencer(municipal)
+        else:
+            blocos.append({"type":"normal","text":"Sem débitos. CND gerada."})
     else:
         # Certidão Positiva Municipal (Fiorilli)
         if municipal.get("certidao_numero"):
@@ -2508,6 +2567,7 @@ def montar_municipal(municipal, hoje):
 
         if total_fonte > 0:
             blocos.append({"type":"normal_bold","text":"Total a pagar: ","bold":fmt(total_fonte)})
+        blocos += _blocos_municipal_a_vencer(municipal)
 
         # Opções de parcelamento (Simulação de Débitos — Fiorilli): mostra a opção
         # com mais parcelas (menor valor mensal), igual ao critério usado nos demais
