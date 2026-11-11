@@ -2754,7 +2754,7 @@ def montar_municipal(municipal, hoje):
             blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Débitos da prefeitura*"})
             blocos.append({"type":"italic","text":f"Débitos — {qtd} {plural(qtd, 'inscrição negociável', 'inscrições negociáveis')}"})
             total_parc = melhor.get("total") or municipal.get('total', melhor['demais']*melhor['num_parcelas'])
-            if melhor.get("total") and melhor["primeira"] != melhor["demais"]:
+            if melhor["primeira"] != melhor["demais"]:
                 # Simulação com 1ª parcela diferente (ex.: Guarulhos, que soma custas na 1ª)
                 parcelas_txt = f"1ª parcela de {fmt(melhor['primeira'])} + {melhor['num_parcelas']-1}x de {fmt(melhor['demais'])}"
             else:
