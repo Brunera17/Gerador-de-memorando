@@ -2604,7 +2604,15 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
     total_mun = 0.0
     if municipal:
         total_mun = municipal.get("total_parcelamento", 0.0) or municipal.get("total", 0.0)
-    if total_mun > 0:
+    opcoes_mun = (municipal or {}).get("parcelamento_opcoes")
+    if opcoes_mun and municipal.get("tem_debitos"):
+        # Com simulação, entra só a 1ª parcela (mesma opção mostrada no âmbito e mesma regra do federal)
+        melhor = max(opcoes_mun, key=lambda o: o["num_parcelas"])
+        blocos.append({"type":"bullet",
+            "normal": "Âmbito Municipal: ",
+            "bold":   f"{fmt(melhor['primeira'])} (1ª parcela do parcelamento municipal)"})
+        total_mun = melhor["primeira"]
+    elif total_mun > 0:
         blocos.append({"type":"bullet",
             "normal": "Âmbito Municipal: ",
             "bold":   fmt(total_mun)})
