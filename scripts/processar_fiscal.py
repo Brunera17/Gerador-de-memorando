@@ -2604,7 +2604,15 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
     total_mun = 0.0
     if municipal:
         total_mun = municipal.get("total_parcelamento", 0.0) or municipal.get("total", 0.0)
-    if total_mun > 0:
+    opcoes_mun = (municipal or {}).get("parcelamento_opcoes")
+    if opcoes_mun and municipal.get("tem_debitos"):
+        # Com simulação, entra só a 1ª parcela (mesma opção mostrada no âmbito e mesma regra do federal)
+        melhor = max(opcoes_mun, key=lambda o: o["num_parcelas"])
+        blocos.append({"type":"bullet",
+            "normal": "Âmbito Municipal: ",
+            "bold":   f"{fmt(melhor['primeira'])} (1ª parcela do parcelamento municipal)"})
+        total_mun = melhor["primeira"]
+    elif total_mun > 0:
         blocos.append({"type":"bullet",
             "normal": "Âmbito Municipal: ",
             "bold":   fmt(total_mun)})
@@ -2746,7 +2754,7 @@ def montar_municipal(municipal, hoje):
             blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Débitos da prefeitura*"})
             blocos.append({"type":"italic","text":f"Débitos — {qtd} {plural(qtd, 'inscrição negociável', 'inscrições negociáveis')}"})
             total_parc = melhor.get("total") or municipal.get('total', melhor['demais']*melhor['num_parcelas'])
-            if melhor.get("total") and melhor["primeira"] != melhor["demais"]:
+            if melhor["primeira"] != melhor["demais"]:
                 # Simulação com 1ª parcela diferente (ex.: Guarulhos, que soma custas na 1ª)
                 parcelas_txt = f"1ª parcela de {fmt(melhor['primeira'])} + {melhor['num_parcelas']-1}x de {fmt(melhor['demais'])}"
             else:
