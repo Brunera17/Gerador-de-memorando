@@ -81,6 +81,10 @@ def classificar_pdf(texto):
         return "parcelamento_mei_emissao"
     if "pgmei" in t and "programa gerador de das" in t and "microempreendedor individual" in t:
         return "mei_pgmei"
+    # Tela "Resumo do DAS a ser gerado" do PGMEI dentro do e-CAC (um ano por
+    # PDF) — os links de cada período apontam para .../Consulta/ExtratoPa/.
+    if "pgmei" in t and "/consulta/extratopa/" in t:
+        return "mei_pgmei"
     if "parcelamento do simples nacional" in t and "nome empresarial" in t:
         if "valores dos débitos não são suficientes" in t or "valores dos debitos nao sao suficientes" in t:
             return "parc_sn_indisponivel"
@@ -164,6 +168,11 @@ def classificar_pdf(texto):
             or ("prefeitura municipal" in t and "extrato de debito" in t)
             or ("certidão negativa de débitos" in t and "tributos municipais" in t)
             or ("certidao negativa de debitos" in t and "tributos municipais" in t)
+            or "certidão positiva de tributos mobiliários" in t
+            or "certidao positiva de tributos mobiliarios" in t
+            or ("demonstrativo de débitos" in t and "posição analítica de lançamentos" in t)
+            or ("demonstrativo de debitos" in t and "posicao analitica de lancamentos" in t)
+            or ("parcelamento web" in t and "valor 1ª parcela" in t)
             or ("fazenda pública municipal" in t and "certidão positiva de débitos" in t)
             or ("fazenda publica municipal" in t and "certidao positiva de debitos" in t)):
         return "municipal"
@@ -567,6 +576,10 @@ def extrair_parcelamento_sn(texto):
     if m: r["valor_primeira"] = float(m.group(1).replace(".","").replace(",","."))
     m = re.search(r'Valor das demais parcelas[:\s]+R\$\s*([\d.,]+)', texto, re.IGNORECASE)
     if m: r["valor_demais"] = float(m.group(1).replace(".","").replace(",","."))
+    # Simulação do parcelamento do MEI (mesma tela do e-CAC, com a nota
+    # sobre "parcelamentos do MEI" anteriores) — cobre as guias do MEI, não
+    # as do Simples Nacional "normal".
+    r["mei"] = bool(re.search(r'\bdo MEI\b', texto))
     return r
 
 
@@ -837,7 +850,7 @@ def extrair_pgmei(texto):
         return r
     m_ano = re.search(r'(\d{4})\s+Ok\b', texto)
     if not m_ano:
-        return r
+        return _extrair_pgmei_ecac(texto, r)
     r["encontrado"] = True
     ano = int(m_ano.group(1))
     r["ano_calendario"] = ano
@@ -876,6 +889,40 @@ def extrair_pgmei(texto):
             "valor_minimo": round(valor_padrao * qtd_meses, 2),
         })
 
+    return r
+
+
+def _extrair_pgmei_ecac(texto, r):
+    """PGMEI pelo e-CAC, tela "Resumo do DAS a ser gerado": só os períodos
+    selecionados (os em atraso), um ano-calendário por PDF — vários PDFs
+    chegam concatenados. Linha: Mês/AAAA R$ Principal R$ Multa R$ Juros
+    R$ Total Vencimento Acolhimento. Às vezes o Total quebra de linha e sai
+    fora do lugar ("Sim R$" antes, "109,93" depois) — nesse caso o total é
+    Principal + Multa + Juros (que é o que a coluna Total sempre mostra).
+    Baseado em dois PDFs reais (2023 e 2024 do mesmo MEI)."""
+    def valor(s):
+        return float(s.replace(".", "").replace(",", "."))
+
+    padrao = re.compile(
+        rf'({_MESES_PGMEI})/(\d{{4}})\s+R\$\s?([\d.,]+)\s+R\$\s?([\d.,]+)\s+R\$\s?([\d.,]+)\s+'
+        rf'(?:R\$\s?([\d.,]+)\s+)?(\d{{2}}/\d{{2}}/\d{{4}})\s+(\d{{2}}/\d{{2}}/\d{{4}})')
+    vistos = set()
+    for m in padrao.finditer(texto):
+        mes, ano_mes, principal, multa, juros, total, venc, acol = m.groups()
+        if (mes, ano_mes) in vistos:
+            continue
+        vistos.add((mes, ano_mes))
+        principal, multa, juros = valor(principal), valor(multa), valor(juros)
+        r["meses_em_atraso"].append({
+            "mes": mes, "ano": ano_mes,
+            "principal": principal, "multa": multa, "juros": juros,
+            "total": valor(total) if total else round(principal + multa + juros, 2),
+            "vencimento": venc, "acolhimento": acol,
+        })
+    meses_ordem = _MESES_PGMEI.split("|")
+    r["meses_em_atraso"].sort(key=lambda x: (x["ano"], meses_ordem.index(x["mes"])))
+    r["total_atraso"] = round(sum(x["total"] for x in r["meses_em_atraso"]), 2)
+    r["encontrado"] = bool(r["meses_em_atraso"])
     return r
 
 
@@ -1644,7 +1691,52 @@ def extrair_municipal(texto):
         if r["debitos"] and r["total"] == 0.0:
             r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
 
-    if r["debitos"] or r["total"] > 0 or r["total_parcelamento"] > 0:
+    # ── Formatos 9 e 10: Prefeitura de Guarulhos ─────────────────────────
+    # Certidão Positiva de Tributos Mobiliários: só o número, sem valores.
+    # Demonstrativo de Débitos ("Posição Analítica de Lançamentos"): uma
+    # linha por aviso — Exercício Código-Tributo Aviso Principal Correção
+    # Multa Juros Honorários Total [processo] Situação.
+    # Serviço - Parcelamento Web: os mesmos débitos (sem código nem situação)
+    # + a simulação. As linhas dele só são usadas quando o Demonstrativo não
+    # veio, para não contar o mesmo aviso duas vezes. Baseado em um caso real.
+    def num_br(s):
+        return float(s.replace(".", "").replace(",", "."))
+    if "certidão positiva de tributos mobiliários" in tl or "certidao positiva de tributos mobiliarios" in tl:
+        m_num = re.search(r'CERTID[ÃA]O N[°º]\s*([\d/]+)', texto)
+        if m_num and not r["certidao_numero"]:
+            r["certidao_numero"] = m_num.group(1)
+        r["certidao_tipo"] = "POSITIVA"
+    if "posição analítica de lançamentos" in tl or "posicao analitica de lancamentos" in tl:
+        situacoes_gru = {"execucao": "Ajuizado", "divida": "Dívida Ativa"}
+        for m in re.finditer(r'^(\d{4})\s+\d+-(.+?)\s+(\d+(?:/\d+)?)\s+([\d.,]+)\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+'
+                             r'([\d.,]+)\b.*?Aberto - (\w+)\s*$', texto, re.MULTILINE):
+            ano, receita, aviso, valor, total_linha, sit = m.groups()
+            r["debitos"].append({"status": situacoes_gru.get(sit.lower(), sit), "numero": aviso, "ano": ano,
+                                 "parcela": "", "receita": receita.strip(),
+                                 "valor": num_br(valor), "a_pagar": num_br(total_linha)})
+        m_tot = re.search(r'Total Geral:\s*(?:[\d.,]+\s+){5}([\d.,]+)', texto)
+        if m_tot and r["total"] == 0.0:
+            r["total"] = num_br(m_tot.group(1))
+    if "parcelamento web" in tl and "valor 1ª parcela" in tl:
+        if not r["debitos"]:
+            for m in re.finditer(r'^(\d{4})\s+(\D+?)\s+(\d+)\s+([\d.,]+)\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s*$',
+                                 texto, re.MULTILINE):
+                ano, receita, aviso, valor, total_linha = m.groups()
+                r["debitos"].append({"status": "", "numero": aviso, "ano": ano, "parcela": "",
+                                     "receita": receita.strip(), "valor": num_br(valor), "a_pagar": num_br(total_linha)})
+            if r["debitos"] and r["total"] == 0.0:
+                r["total"] = round(sum(d["a_pagar"] for d in r["debitos"]), 2)
+        m_qtd = re.search(r'(\d+)\s+parcelas\s+\d{2}/\d{2}/\d{4}', texto)
+        m_val = re.search(r'Valor 1ª Parcela.*?\n([\d.,]+)\s+([\d.,]+)\s+\d{2}/\d{2}/\d{4}', texto)
+        m_tot = re.search(r'Valor Total\s*\n[^\n]*\n([\d.,]+)', texto)
+        if m_qtd and m_val:
+            r["parcelamento_opcoes"].append({
+                "num_parcelas": int(m_qtd.group(1)),
+                "primeira": num_br(m_val.group(1)), "demais": num_br(m_val.group(2)), "desconto": 0.0,
+                "total": num_br(m_tot.group(1)) if m_tot else 0.0,
+            })
+
+    if r["debitos"] or r["total"] > 0 or r["total_parcelamento"] > 0 or r["certidao_tipo"] == "POSITIVA":
         r["tem_debitos"] = True
         r["status"]      = "COM_DEBITOS"
     return r
@@ -1744,7 +1836,7 @@ def blocos_para_xml(blocos):
                 xml.append(wp(before=0, after=40) + wr("⚠ Inscrição enviada para protesto — regularização no tabelionato.", bold=True, color="C00000") + "</w:p>")
         elif t == "parc_sn":
             xml.append(wp(before=120, after=40) + wr("*POSSIBILIDADE DE PARCELAMENTO*", bold=True) + "</w:p>")
-            xml.append(wp(before=0, after=40) + wr("Parcelamento Simples Nacional") + "</w:p>")
+            xml.append(wp(before=0, after=40) + wr("Parcelamento MEI" if b.get("mei") else "Parcelamento Simples Nacional") + "</w:p>")
             if not b.get("omitir_total"):
                 xml.append(wp(before=0, after=40) + wr("Valor total parcelado: ") + wr(b.get("valor_total",""), bold=True) + wr(".") + "</w:p>")
             vp = b.get("valor_primeira",""); vd = b.get("valor_demais",""); np_ = b.get("num_parcelas",0)
@@ -1861,13 +1953,23 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
                         (f" (Restando {pgdau_prest['parcelas_restantes']} parcelas a vencer)"
                          if pgdau_prest.get("parcelas_restantes", 0) > 0 else "") + "."})
         if tem_pgmei_atraso:
-            meses = pgmei["meses_em_atraso"]
-            qtd = len(meses)
-            faixa = (f"{meses[0]['mes']}/{meses[0]['ano']} a {meses[-1]['mes']}/{meses[-1]['ano']}"
-                     if qtd > 1 else f"{meses[0]['mes']}/{meses[0]['ano']}")
-            blocos.append({"type":"bullet",
-                "normal": f"DAS MEI EM ATRASO – {faixa} ({qtd} {plural(qtd, 'guia', 'guias')}) totalizando ",
-                "bold": fmt(pgmei['total_atraso']) + "."})
+            # Um item por ano-calendário (o PGMEI só consulta um ano por vez)
+            # e, com mais de um ano, uma linha final com o total geral.
+            por_ano = {}
+            for x in pgmei["meses_em_atraso"]:
+                por_ano.setdefault(x["ano"], []).append(x)
+            for meses in por_ano.values():
+                qtd = len(meses)
+                faixa = (f"{meses[0]['mes']}/{meses[0]['ano']} a {meses[-1]['mes']}/{meses[-1]['ano']}"
+                         if qtd > 1 else f"{meses[0]['mes']}/{meses[0]['ano']}")
+                blocos.append({"type":"bullet",
+                    "normal": f"DAS MEI EM ATRASO – {faixa} ({qtd} {plural(qtd, 'guia', 'guias')}) totalizando ",
+                    "bold": fmt(round(sum(x["total"] for x in meses), 2)) + "."})
+            if len(por_ano) > 1:
+                qtd = len(pgmei["meses_em_atraso"])
+                blocos.append({"type":"normal_bold",
+                    "text": f"Total DAS MEI em atraso ({qtd} guias): ",
+                    "bold": fmt(pgmei['total_atraso']) + "."})
         if tem_parcsn_atraso and parcsn_emissao["parcelas"]:
             # Valor por parcela não é uniforme (diferente do MEI) — lista os
             # períodos em vez de dizer "N parcelas de R$X", que seria falso
@@ -1914,7 +2016,7 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             blocos.append({"type":"bullet","normal":f"Referente ao mês {faixa} – ","bold":fmt(total)})
 
         if parc_sn.get("encontrado") and not parc_sn.get("indisponivel"):
-            blocos.append({"type":"parc_sn","valor_total":fmt(parc_sn["valor_total"]),"num_parcelas":parc_sn["num_parcelas"],"valor_primeira":fmt(parc_sn["valor_primeira"]),"valor_demais":fmt(parc_sn["valor_demais"]),"omitir_total":usar_valor_parcelamento_sn})
+            blocos.append({"type":"parc_sn","valor_total":fmt(parc_sn["valor_total"]),"num_parcelas":parc_sn["num_parcelas"],"valor_primeira":fmt(parc_sn["valor_primeira"]),"valor_demais":fmt(parc_sn["valor_demais"]),"omitir_total":usar_valor_parcelamento_sn,"mei":parc_sn.get("mei")})
         elif parc_sn.get("indisponivel"):
             blocos.append({"type":"date","text":"* Parcelamento via Simples Nacional não disponível para este caso (valores abaixo do mínimo exigido)."})
 
@@ -2391,16 +2493,30 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
     # fora de parcelamento entra com o saldo cheio; quando há simulação de
     # parcelamento cobrindo as guias, entra só a 1ª parcela (regra do escritório):
     #   - Parcelamento Simplificado (e-CAC): cobre todas as guias do SIEF;
-    #   - Parcelamento do Simples Nacional: cobre só as guias do Simples.
+    #   - Parcelamento do Simples Nacional: cobre só as guias do Simples;
+    #   - Parcelamento do MEI: cobre só as guias do MEI (SIEF e PGMEI).
     debitos_sief = federal.get("debitos", []) if federal else []
+    sn_ok = bool(parc_sn and parc_sn.get("encontrado") and not parc_sn.get("indisponivel"))
+    mei_ok = sn_ok and parc_sn.get("mei")
+    tem_pgmei = bool(pgmei and pgmei.get("meses_em_atraso"))
+    if mei_ok and not debitos_sief and tem_pgmei:
+        primeira = parc_sn.get("valor_primeira") or parc_sn.get("valor_demais", 0.0)
+        if primeira > 0:
+            partes_fed.append(f"{fmt(primeira)} (1ª parcela do Parcelamento MEI)")
+            total_fed += primeira
     if debitos_sief:
         simp_ok = bool(parc_simp and parc_simp.get("encontrado") and not parc_simp.get("indisponivel"))
-        sn_ok = bool(parc_sn and parc_sn.get("encontrado") and not parc_sn.get("indisponivel"))
         if simp_ok:
             sem_parcelamento = []
             primeira = parc_simp.get("valor_entrada") or parc_simp.get("valor_parcela", 0.0)
             if primeira > 0:
                 partes_fed.append(f"{fmt(primeira)} (1ª parcela do Parcelamento Simplificado)")
+                total_fed += primeira
+        elif mei_ok:
+            sem_parcelamento = [d for d in debitos_sief if d["receita"].upper() != "MEI"]
+            primeira = parc_sn.get("valor_primeira") or parc_sn.get("valor_demais", 0.0)
+            if primeira > 0 and (len(sem_parcelamento) < len(debitos_sief) or tem_pgmei):
+                partes_fed.append(f"{fmt(primeira)} (1ª parcela do Parcelamento MEI)")
                 total_fed += primeira
         elif sn_ok:
             sem_parcelamento = [d for d in debitos_sief if "SIMPLES" not in d["receita"].upper()]
@@ -2457,7 +2573,9 @@ def montar_resumo(federal, decl_omissas, municipal, parc_siefpar, honorarios, ho
     # ainda em aberto (mesmo critério do corpo do texto: soma tudo que é
     # dinheiro devido, não só o que já tem valor 100% fechado).
     if pgmei and pgmei.get("encontrado"):
-        if pgmei.get("total_atraso", 0) > 0:
+        # Com simulação do parcelamento do MEI, as guias em atraso já entram
+        # pela 1ª parcela (bloco do SIEF acima) — não soma o total delas.
+        if pgmei.get("total_atraso", 0) > 0 and not mei_ok:
             partes_fed.append(fmt(pgmei["total_atraso"]))
             total_fed += pgmei["total_atraso"]
         valor_min_aberto = sum(a.get("valor_minimo", 0.0) for a in pgmei.get("anos_em_aberto", []))
@@ -2627,8 +2745,14 @@ def montar_municipal(municipal, hoje):
             qtd = len(municipal.get("debitos", []))
             blocos.append({"type":"label","text":"*POSSIBILIDADE DE PARCELAMENTO — Débitos da prefeitura*"})
             blocos.append({"type":"italic","text":f"Débitos — {qtd} {plural(qtd, 'inscrição negociável', 'inscrições negociáveis')}"})
+            total_parc = melhor.get("total") or municipal.get('total', melhor['demais']*melhor['num_parcelas'])
+            if melhor.get("total") and melhor["primeira"] != melhor["demais"]:
+                # Simulação com 1ª parcela diferente (ex.: Guarulhos, que soma custas na 1ª)
+                parcelas_txt = f"1ª parcela de {fmt(melhor['primeira'])} + {melhor['num_parcelas']-1}x de {fmt(melhor['demais'])}"
+            else:
+                parcelas_txt = f"{melhor['num_parcelas']}x de {fmt(melhor['demais'])}"
             blocos.append({"type":"bullet","normal":"Parcelamento Convencional: ",
-                "bold": f"{melhor['num_parcelas']}x de {fmt(melhor['demais'])} — Total: {fmt(municipal.get('total', melhor['demais']*melhor['num_parcelas']))}"})
+                "bold": f"{parcelas_txt} — Total: {fmt(total_parc)}"})
         else:
             blocos.append({"type":"date","text":"*Não há possibilidade de parcelamento*."})
 
@@ -2766,6 +2890,16 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     mei_emissao = extrair_mei_emissao_parcela(get("parcelamento_mei_emissao"), pendentes.get("MEI"))
     parcsn_emissao = extrair_parcsn_emissao_parcela(get("parcelamento_pn_emissao"), pendentes.get("SIMPLES NACIONAL"))
     pgmei       = extrair_pgmei(get("mei_pgmei"))
+    # O mesmo DAS MEI aparece no Relatório de Situação Fiscal (SIEF, receita
+    # "MEI", um mês por linha) e no PGMEI — sem isso ele era somado duas
+    # vezes. Fica a linha do PGMEI (agrupada por ano, valor do dia); o SIEF
+    # mantém só os meses que o PGMEI enviado não cobre.
+    meses_pgmei = {f"{_MESES_PGMEI.split('|').index(x['mes']) + 1:02d}/{x['ano']}"
+                   for x in pgmei.get("meses_em_atraso", [])}
+    if meses_pgmei and federal.get("debitos"):
+        federal["debitos"] = [d for d in federal["debitos"]
+                              if not (d.get("receita", "").upper() == "MEI" and d.get("periodo") in meses_pgmei)]
+        federal["tem_debitos_exigiveis"] = bool(federal["debitos"])
     estadual    = extrair_estadual(get("estadual_pge"), get("estadual_sefaz"), get("estadual_cnd_sp"))
     fgts        = extrair_fgts(get("fgts_crf"))
     cndt        = extrair_cndt(get("cndt"))
