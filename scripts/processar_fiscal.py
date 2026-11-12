@@ -34,6 +34,8 @@ def extrair_texto_pdf(caminho):
 
 def classificar_pdf(texto):
     t = texto.lower()
+    if "notificação de lançamento" in t and "multa por atraso na entrega" in t:
+        return "notificacao_multa"
     if ("secretaria especial da receita federal" in t
             or "informacoes de apoio para emissao de certidao" in t
             or "informações de apoio para emissão de certidão" in t
@@ -425,6 +427,38 @@ def extrair_federal(texto):
         r['inscricoes_sida'] = inscricoes
 
     return r
+
+
+def extrair_notificacoes_multa(texto):
+    """Notificação de Lançamento — multa por atraso na entrega de declaração
+    (um PDF por declaração). Não aparece no Relatório de Situação Fiscal."""
+    meses = "JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ".split("|")
+    num = lambda v: float(v.replace(".", "").replace(",", "."))
+    itens, vistos = [], set()
+    for bloco in re.split(r'(?=NOTIFICA[ÇC][ÃA]O DE LAN[ÇC]AMENTO)', texto or ""):
+        m_decl = re.search(r'MULTA POR ATRASO NA ENTREGA DA[^\n]*\n([^\n]+)', bloco)
+        m_val = re.findall(r'Valor da multa por atraso na entrega da declara[çc][ãa]o[^:\n]*:\s*([\d.]+,\d{2})', bloco)
+        if not (m_decl and m_val):
+            continue
+        m_nl = re.search(r'Notifica[çc][ãa]o de Lan[çc]amento:\s*([\d.\-]+)', bloco)
+        if m_nl and m_nl.group(1) in vistos:
+            continue
+        if m_nl:
+            vistos.add(m_nl.group(1))
+        # "D C T F MENSAL - 3.9" -> "DCTF MENSAL"
+        decl = re.sub(r'(?<=\b[A-Z]) (?=[A-Z]\b)', '', m_decl.group(1)).split(" - ")[0].strip()
+        m_ano = re.search(r'Ano:\s*(\d{4})', bloco)
+        m_mes = re.search(r'M[êe]s:\s*([A-Z]{3})', bloco)
+        periodo = m_ano.group(1) if m_ano else ""
+        if m_mes and m_mes.group(1) in meses:
+            periodo = f"{meses.index(m_mes.group(1)) + 1:02d}/{periodo}"
+        m_red = re.search(r'\nValor:\s*([\d.]+,\d{2})', bloco)
+        m_venc = re.search(r'Data de Vencimento:\s*(\d{2}/\d{2}/\d{4})', bloco)
+        itens.append({"declaracao": decl, "periodo": periodo,
+                      "valor": max(num(v) for v in m_val),
+                      "valor_reduzido": num(m_red.group(1)) if m_red else 0.0,
+                      "vencimento": m_venc.group(1) if m_venc else ""})
+    return itens
 
 
 def extrair_declaracoes_omissas(texto):
@@ -1923,6 +1957,18 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
             "text": f"Valor da multa: {multa_fmt} por declaração "
                     f"(Redução de 50% desse valor se pago dentro do prazo)."})
 
+    notifs = (decl_omissas or {}).get("notificacoes") or []
+    if notifs:
+        blocos.append({"type":"label","text":"Multas por atraso na entrega de declaração (Notificação de Lançamento):"})
+        for n in notifs:
+            red = (f" ({fmt(n['valor_reduzido'])} com redução, pagando até {n['vencimento']})"
+                   if n["valor_reduzido"] and n["vencimento"] else "")
+            blocos.append({"type":"bullet","normal":f"{n['declaracao']} {n['periodo']} — ",
+                           "bold":f"{fmt(n['valor'])}{red}"})
+        if len(notifs) > 1:
+            blocos.append({"type":"normal_bold","text":f"Total das multas ({len(notifs)} notificações): ",
+                           "bold":fmt(sum(n["valor"] for n in notifs))})
+
     # Parcelamento com exigibilidade suspensa (PARCSN/PARCMEI)
     if federal.get("parcelamento_ativo"):
         blocos.append({"type":"date",
@@ -2844,7 +2890,7 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     nenhum arquivo. Usado pelo main() (CLI) e pela interface web, para que
     os dois caminhos rodem exatamente a mesma lógica de extração.
     """
-    TIPOS_FEDERAL = {"federal","fgts_crf","cndt","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","parcelamento_pn_emissao","analise_previa_sn","mei_pgmei"}
+    TIPOS_FEDERAL = {"federal","fgts_crf","cndt","parcelamento_sn","parc_sn_indisponivel","parcelamento_simplificado","parcelamento_dau","parcelamento_sispar","regularize_valores","parcelamento_pgdau_prestacoes","parcelamento_mei_emissao","parcelamento_pn_emissao","analise_previa_sn","mei_pgmei","notificacao_multa"}
     textos = {}
     classificacao = []  # [(nome_exibido, tipo), ...] — para revisão antes de gerar
 
@@ -2877,6 +2923,8 @@ def processar_pasta(pasta_pdfs, honorarios=0.0):
     nome, cnpj = extrair_dados_empresa({k: get(k) for k in textos})
     federal     = extrair_federal(get("federal"))
     decl_omissas   = extrair_declaracoes_omissas(get("federal"))
+    decl_omissas["notificacoes"] = extrair_notificacoes_multa(get("notificacao_multa"))
+    decl_omissas["total_multas"] += sum(n["valor"] for n in decl_omissas["notificacoes"])
     parc_sn     = extrair_parcelamento_sn(get("parcelamento_sn") or get("parc_sn_indisponivel"))
     parc_simp   = extrair_parcelamento_simplificado(get("parcelamento_simplificado"))
     parc_dau    = extrair_parcelamento_dau(get("parcelamento_dau"))
