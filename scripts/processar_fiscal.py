@@ -168,8 +168,8 @@ def classificar_pdf(texto):
             or "composicao da guia" in t
             or ("prefeitura municipal" in t and "extrato de débito" in t)
             or ("prefeitura municipal" in t and "extrato de debito" in t)
-            or ("certidão negativa de débitos" in t and "tributos municipais" in t)
-            or ("certidao negativa de debitos" in t and "tributos municipais" in t)
+            or ("certidão negativa de débitos" in t and "tributos municipais" in tn)
+            or ("certidao negativa de debitos" in t and "tributos municipais" in tn)
             or "certidão positiva de tributos mobiliários" in t
             or "certidao positiva de tributos mobiliarios" in t
             or ("demonstrativo de débitos" in t and "posição analítica de lançamentos" in t)
