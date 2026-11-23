@@ -1979,8 +1979,18 @@ def montar_federal(federal, parc_sn, parc_simp, parc_dau, hoje, parc_sispar, reg
     tem_dau_atraso = pgdau_prest and pgdau_prest.get("encontrado") and pgdau_prest.get("valor_parcela_atual", 0) > 0
     tem_pgmei_atraso = pgmei and pgmei.get("encontrado") and pgmei.get("meses_em_atraso")
     tem_parcsn_atraso = parcsn_emissao and parcsn_emissao.get("encontrado")
-    if tem_mei_atraso or tem_dau_atraso or tem_pgmei_atraso or tem_parcsn_atraso:
+    # Parcelas em atraso que o relatório aponta, mas sem a tela "Emissão de
+    # Parcela" que daria o valor — informa a pendência sem valor.
+    pend_sem_valor = [pp for pp in federal.get("parcelamentos_pendentes", [])
+                      if pp["parcelas_em_atraso"] > 0
+                      and not (tem_mei_atraso if pp["modalidade"] == "MEI" else tem_parcsn_atraso)]
+    if tem_mei_atraso or tem_dau_atraso or tem_pgmei_atraso or tem_parcsn_atraso or pend_sem_valor:
         blocos.append({"type":"label","text":"Débitos:"})
+        for pp in pend_sem_valor:
+            qtd = pp["parcelas_em_atraso"]
+            blocos.append({"type":"bullet",
+                "normal": f"PARCELAMENTO {pp['modalidade']} EM ATRASO – ",
+                "bold": f"{qtd} {plural(qtd, 'parcela', 'parcelas')} em atraso (valor na Emissão de Parcela do e-CAC)."})
         if tem_mei_atraso and mei_emissao["quantidade"] > 0:
             qtd = mei_emissao["quantidade"]
             blocos.append({"type":"bullet",
